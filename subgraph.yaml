@@ -30,3 +30,29 @@ dataSources:
         - event: Upgraded(indexed address)
           handler: handleUpgraded
       file: ./src/eigenpie-staking.ts
+  - kind: ethereum
+    name: EigenpieConfig
+    network: mainnet
+    source:
+      address: "0x20b70E4A1883b81429533FeD944d7957121c7CAB"
+      abi: EigenpieConfig
+      startBlock: 19090400
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - EigenpieConfigAdminChanged
+        - EigenpieConfigBeaconUpgraded
+        - EigenpieConfigUpgraded
+      abis:
+        - name: EigenpieConfig
+          file: ./abis/EigenpieConfig.json
+      eventHandlers:
+        - event: AdminChanged(address,address)
+          handler: handleAdminChanged
+        - event: BeaconUpgraded(indexed address)
+          handler: handleBeaconUpgraded
+        - event: Upgraded(indexed address)
+          handler: handleUpgraded
+      file: ./src/eigenpie-config.ts
