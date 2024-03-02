@@ -1,6 +1,6 @@
 import { Address, BigInt, Bytes, crypto } from "@graphprotocol/graph-ts"
 import { Transfer as TransferEvent, MLRT } from "../generated/templates/MLRT/MLRT"
-import { ADDRESS_ZERO, BIGINT_ZERO, DENOMINATOR, EIGEN_POINT_LAUNCH_TIME, ETHER_ONE, MLRT_POINT_PER_SEC, EIGEN_LAYER_POINT_PER_SEC, EIGENPIE_PREDEPLOST_HELPER } from "./constants"
+import { ADDRESS_ZERO, BIGINT_ZERO, DENOMINATOR, EIGEN_POINT_LAUNCH_TIME, ETHER_ONE, MLRT_POINT_PER_SEC, EIGEN_LAYER_POINT_PER_SEC, EIGENPIE_PREDEPLOST_HELPER, EIGENPIE_POINT_PER_SEC } from "./constants"
 import { GroupMlrtPoolStatus, ReferralGroup } from "../generated/schema"
 import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateUserData, loadOrCreateUserDepositData } from "./entity-operations"
 import { calEigenpiePointGroupBoost, extraBoost } from "./boost-module"
@@ -15,7 +15,7 @@ export function handleTransfer(event: TransferEvent): void {
     )
         depopsitHandler(event, false)
 
-    if (
+    else if (
         event.params.from.equals(ADDRESS_ZERO) &&
         event.params.to.equals(EIGENPIE_PREDEPLOST_HELPER) // pre-deposit
     )
@@ -48,15 +48,17 @@ function depopsitHandler(event: TransferEvent, isPreDeposit: boolean): void {
         mlrtPoolStatus.totalAmount = mlrtPoolStatus.totalAmount.plus(event.params.value)
     mlrtPoolStatus.totalTvl = mlrtPoolStatus.totalAmount.times(exchangeRateToNative).div(ETHER_ONE)
     mlrtPoolStatus.accumulateEigenLayerPoints = mlrtPoolStatus.accumulateEigenLayerPoints.plus(earnedEigenLayerPoint)
-    mlrtPoolStatus.accEigenLayerPointPerShare = mlrtPoolStatus.accumulateEigenLayerPoints.times(ETHER_ONE).div(mlrtPoolStatus.totalTvl)
+    mlrtPoolStatus.accEigenLayerPointPerShare = (mlrtPoolStatus.totalTvl.gt(BIGINT_ZERO)) ? mlrtPoolStatus.accumulateEigenLayerPoints.times(ETHER_ONE).div(mlrtPoolStatus.totalAmount) : BIGINT_ZERO
     mlrtPoolStatus.save()
 
     // update eigenpie points for the pool
     let unmintedMlrtTvl = mlrtPoolStatus.totalUnmintedMlrt.times(exchangeRateToNative).div(ETHER_ONE)
-    let earnedEigenpiePoint = previousTotalTvl.plus(unmintedMlrtTvl).times(timeDiff).times(EIGEN_LAYER_POINT_PER_SEC).div(ETHER_ONE)
+    let totalTvlForEigenpie = previousTotalTvl.plus(unmintedMlrtTvl)
+    // Todo: if boost during the time diff
+    let earnedEigenpiePoint = totalTvlForEigenpie.times(timeDiff).times(EIGENPIE_POINT_PER_SEC).div(ETHER_ONE)
     let boostedEigenpiePoint = earnedEigenpiePoint.times(groupData!.groupBoost).times(extraBoost(event.block.timestamp)).div(DENOMINATOR.pow(2))
     mlrtPoolStatus.accumulateEigenpiePoints = mlrtPoolStatus.accumulateEigenpiePoints.plus(boostedEigenpiePoint)
-    mlrtPoolStatus.accEigenpiePointPerShare = mlrtPoolStatus.accumulateEigenpiePoints.times(ETHER_ONE).div(mlrtPoolStatus.totalTvl)
+    mlrtPoolStatus.accEigenpiePointPerShare = (totalTvlForEigenpie.gt(BIGINT_ZERO)) ? mlrtPoolStatus.accumulateEigenpiePoints.times(ETHER_ONE).div(mlrtPoolStatus.totalAmount) : BIGINT_ZERO
 
     // update groupBoost
     let newGroupBoost = calEigenpiePointGroupBoost(groupData!.mlrtPoolStatus.load())
@@ -65,12 +67,19 @@ function depopsitHandler(event: TransferEvent, isPreDeposit: boolean): void {
 
     // update eigenlayer points for the user
     let userPoolDepositData = loadOrCreateUserDepositData(event.params.to, mlrt.underlyingAsset(), event.address)
-    userPoolDepositData.amount = userPoolDepositData.amount.plus(event.params.value)
+    if (isPreDeposit)
+        userPoolDepositData.unmintedMlrt = userPoolDepositData.unmintedMlrt.plus(event.params.value)
+    else
+        userPoolDepositData.mlrtAmount = userPoolDepositData.mlrtAmount.plus(event.params.value)
     let newDepositedTvl = event.params.value.times(exchangeRateToNative).div(ETHER_ONE)
-    let currentTvl = userPoolDepositData.amount.minus(userPoolDepositData.unmintedMlrt).times(exchangeRateToNative).div(ETHER_ONE)
     userPoolDepositData.eigenLayerPointsDebt = newDepositedTvl.times(mlrtPoolStatus.accEigenLayerPointPerShare).div(ETHER_ONE)
-    userPoolDepositData.eigenLayerPoints = currentTvl.times(mlrtPoolStatus.accEigenLayerPointPerShare).div(ETHER_ONE)
+    userPoolDepositData.eigenLayerPoints = userPoolDepositData.mlrtAmount.times(mlrtPoolStatus.accEigenLayerPointPerShare).div(ETHER_ONE)
         .minus(userPoolDepositData.eigenLayerPointsDebt).plus(userPoolDepositData.eigenLayerPoints)
+    
+    // update eigenpie points for the user
+    userPoolDepositData.eigenpiePointsDebt = newDepositedTvl.times(mlrtPoolStatus.accEigenpiePointPerShare).div(ETHER_ONE)
+    userPoolDepositData.eigenpiePoints = userPoolDepositData.mlrtAmount.plus(userPoolDepositData.unmintedMlrt).times(mlrtPoolStatus.accEigenpiePointPerShare).div(ETHER_ONE)
+        .minus(userPoolDepositData.eigenpiePointsDebt).plus(userPoolDepositData.eigenpiePoints)
 
     mlrtPoolStatus.lastUpdateTimestamp = event.block.timestamp
     mlrtPoolStatus.save()

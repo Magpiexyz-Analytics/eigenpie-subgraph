@@ -19,13 +19,26 @@ type GroupMlrtPoolStatus @entity(immutable: false) {
   lastUpdateTimestamp: BigInt!
 }
 
+type GroupPartnerLpStatus @entity(immutable: false) {
+  id: Bytes! # hash(group, lp address)
+  group: ReferralGroup!
+  prtotcol: String!
+  lpAddress: Bytes!
+  totalAmount: BigInt!
+  accumulateEigenLayerPoints: BigInt!
+  accumulateEigenpiePoints: BigInt!
+  accEigenLayerPointPerShare: BigInt!
+  accEigenpiePointPerShare: BigInt!
+  lastUpdateTimestamp: BigInt!
+}
+
 type UserData @entity {
   id: Bytes!
   referrer: Bytes!
   referralGroup: ReferralGroup!
   referralCount: Int!
   mLrtPools: [UserPoolDepositData!]! @derivedFrom(field: "user")
-  # curvePools
+  # curvePools: [UserPoolDepositData!]! @derivedFrom(field: "prtotcol")
   # rangePools
 }
 
@@ -33,8 +46,20 @@ type UserPoolDepositData @entity {
   id: Bytes!
   user: UserData!
   mlrt: TrackedMLRT!
-  amount: BigInt!
+  mlrtAmount: BigInt!
   unmintedMlrt: BigInt!
+  eigenLayerPoints: BigInt!
+  eigenpiePoints: BigInt!
+  eigenLayerPointsDebt: BigInt!
+  eigenpiePointsDebt: BigInt!
+}
+
+type UserPartnerLpDepositData @entity {
+  id: Bytes!
+  user: UserData!
+  prtotcol: String!
+  lpAddress: Bytes!
+  lpAmount: BigInt!
   eigenLayerPoints: BigInt!
   eigenpiePoints: BigInt!
   eigenLayerPointsDebt: BigInt!

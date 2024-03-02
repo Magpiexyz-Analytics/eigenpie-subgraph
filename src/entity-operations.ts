@@ -52,7 +52,7 @@ export function loadOrCreateUserDepositData(userAddress: Bytes, assetAddress: By
         userPoolDepositData = new UserPoolDepositData(userAddress.concat(assetAddress))
         userPoolDepositData.user = userAddress
         userPoolDepositData.mlrt = mlrtAddress
-        userPoolDepositData.amount = BIGINT_ZERO
+        userPoolDepositData.mlrtAmount = BIGINT_ZERO
         userPoolDepositData.unmintedMlrt = BIGINT_ZERO
         userPoolDepositData.eigenLayerPoints = BIGINT_ZERO
         userPoolDepositData.eigenLayerPointsDebt = BIGINT_ZERO

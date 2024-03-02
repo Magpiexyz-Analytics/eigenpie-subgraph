@@ -50,27 +50,35 @@ export function handleAssetDeposit(event: AssetDepositEvent): void {
                 referrerGroupMlrtPools[i].save()
             }
 
+            let userGroupMembers = userGroup.members.load()
+            for (let i = 0; i < userGroupMembers.length; i++) {
+                let member = UserData.load(userGroupMembers[i].id)!
+                member.referralGroup = referrerGroup.id
+                member.save()
+                let mLrtPools = member.mLrtPools.load()
+                for (let j = 0; j < mLrtPools.length; j++) {
+                    let mlrt = MLRT.bind(mLrtPools[i].mlrt as Address)
+                    let mlrtPoolStatus = loadOrCreateGroupMlrtPoolStatus(userGroup.id, mLrtPools[i].mlrt)
+                    // update eigenlayer points
+                    let userPoolDepositData = loadOrCreateUserDepositData(member.id, mlrt.underlyingAsset(), mLrtPools[i].mlrt)
+                    userPoolDepositData.eigenLayerPoints = userPoolDepositData.mlrtAmount.times(mlrtPoolStatus.accEigenLayerPointPerShare).div(ETHER_ONE)
+                        .plus(userPoolDepositData.eigenLayerPoints)
+                    // update eigenpie points
+                    userPoolDepositData.eigenpiePoints = userPoolDepositData.mlrtAmount.plus(userPoolDepositData.unmintedMlrt).times(mlrtPoolStatus.accEigenpiePointPerShare).div(ETHER_ONE)
+                        .plus(userPoolDepositData.eigenpiePoints)
+                }
+            }
+
             for (let i = 0; i < userGroupMlrtPools.length; i++) {
                 let mlrtAddress = userGroupMlrtPools[i].mlrt
                 let groupMlrtPoolStatusToMerge = loadOrCreateGroupMlrtPoolStatus(referrerGroup.id, mlrtAddress)
                 groupMlrtPoolStatusToMerge.totalTvl = groupMlrtPoolStatusToMerge.totalTvl.plus(userGroupMlrtPools[i].totalTvl)
                 groupMlrtPoolStatusToMerge.totalAmount = groupMlrtPoolStatusToMerge.totalAmount.plus(userGroupMlrtPools[i].totalAmount)
                 groupMlrtPoolStatusToMerge.totalUnmintedMlrt = groupMlrtPoolStatusToMerge.totalUnmintedMlrt.plus(userGroupMlrtPools[i].totalUnmintedMlrt)
-                groupMlrtPoolStatusToMerge.accumulateEigenLayerPoints = groupMlrtPoolStatusToMerge.accumulateEigenLayerPoints.plus(userGroupMlrtPools[i].accumulateEigenLayerPoints)
-                groupMlrtPoolStatusToMerge.accumulateEigenpiePoints = groupMlrtPoolStatusToMerge.accumulateEigenpiePoints.plus(userGroupMlrtPools[i].accumulateEigenpiePoints)
-                groupMlrtPoolStatusToMerge.accEigenLayerPointPerShare = groupMlrtPoolStatusToMerge.accumulateEigenLayerPoints.times(ETHER_ONE).div(groupMlrtPoolStatusToMerge.totalTvl)
-                groupMlrtPoolStatusToMerge.accEigenLayerPointPerShare = groupMlrtPoolStatusToMerge.accumulateEigenLayerPoints.times(ETHER_ONE).div(groupMlrtPoolStatusToMerge.totalTvl)
                 groupMlrtPoolStatusToMerge.lastUpdateTimestamp = event.block.timestamp
                 groupMlrtPoolStatusToMerge.save()
 
                 store.remove("GroupMlrtPoolStatus", referrerGroupMlrtPools[i].id.toHexString()) // remove useless pool status from store
-            }
-
-            let userGroupMembers = userGroup.members.load()
-            for (let i = 0; i < userGroupMembers.length; i++) {
-                let member = UserData.load(userGroupMembers[i].id)!
-                member.referralGroup = referrerGroup.id
-                member.save()
             }
 
             store.remove("ReferralGroup", userGroup.id.toHexString()) // remove empty group from store
