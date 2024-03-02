@@ -73,6 +73,7 @@ export function loadOrCreateGroupMlrtPoolStatus(groupId: Bytes, mlrtAddress: Byt
         mlrtPoolStatus.mlrt = mlrtAddress
         mlrtPoolStatus.totalTvl = BIGINT_ZERO
         mlrtPoolStatus.totalAmount = BIGINT_ZERO
+        mlrtPoolStatus.totalUnmintedTvl = BIGINT_ZERO
         mlrtPoolStatus.totalUnmintedMlrt = BIGINT_ZERO
         mlrtPoolStatus.accumulateEigenLayerPoints = BIGINT_ZERO
         mlrtPoolStatus.accumulateEigenpiePoints = BIGINT_ZERO

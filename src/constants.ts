@@ -10,3 +10,4 @@ export const ADDRESS_ZERO = Address.fromString("0x000000000000000000000000000000
 export const BIGINT_ZERO = BigInt.fromI32(0)
 export const BYTES_ZERO = Bytes.fromI32(0)
 export const EIGEN_POINT_LAUNCH_TIME = BigInt.fromI32(1707163200)
+export const EIGENPIE_PREDEPLOST_HELPER = Address.fromHexString("0xcc5460cf8f81caa790b87910364e67ddb50e242b")
