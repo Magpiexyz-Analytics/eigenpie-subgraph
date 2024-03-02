@@ -1,54 +1,90 @@
-import { BigInt } from "@graphprotocol/graph-ts"
-import {
-  EigenpieStaking,
-  AdminChanged,
-  BeaconUpgraded,
-  Upgraded
-} from "../generated/EigenpieStaking/EigenpieStaking"
-import { ExampleEntity } from "../generated/schema"
+import { Address, BigInt, store } from "@graphprotocol/graph-ts"
+import { AssetDeposit as AssetDepositEvent, EigenpieStaking } from "../generated/EigenpieStaking/EigenpieStaking"
+import { ReferralGroup, UserData } from "../generated/schema"
+import { EigenpieConfig } from "../generated/EigenpieConfig/EigenpieConfig"
+import { MLRT } from "../generated/templates/MLRT/MLRT"
+import { ADDRESS_ZERO, BIGINT_ZERO, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE } from "./constants"
+import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateReferralGroup, loadOrCreateUserData, loadOrCreateUserDepositData, loadReferralStatus } from "./entity-operations"
+import { calEigenpiePointGroupBoost } from "./boost-module"
 
-export function handleAdminChanged(event: AdminChanged): void {
-  // Entities can be loaded from the store using a string ID; this ID
-  // needs to be unique across all entities of the same type
-  let entity = ExampleEntity.load(event.transaction.from)
+export function handleAssetDeposit(event: AssetDepositEvent): void {
+    // update the referral info if user's referrer was updated
+    if (event.params.referral.notEqual(ADDRESS_ZERO)) {
+        let userData = loadOrCreateUserData(event.params.depositor, event.params.referral) // try to update the referrer
+        let referrerData = loadOrCreateUserData(userData.referrer, ADDRESS_ZERO)
 
-  // Entities only exist after they have been saved to the store;
-  // `null` checks allow to create entities on demand
-  if (!entity) {
-    entity = new ExampleEntity(event.transaction.from)
+        if (userData.referralGroup.notEqual(referrerData.referralGroup)) {
+            // if the user and the referrer are not in the same group, merge them
+            let userGroup = loadOrCreateReferralGroup(userData.referralGroup)
+            let referrerGroup = loadOrCreateReferralGroup(referrerData.referralGroup)
 
-    // Entity fields can be set using simple assignments
-    entity.count = BigInt.fromI32(0)
-  }
+            let userGroupMlrtPools = userGroup.mlrtPoolStatus.load()
+            let referrerGroupMlrtPools = referrerGroup.mlrtPoolStatus.load()
+            for (let i = 0; i < userGroupMlrtPools.length; i++) {
+                let mlrtAddress = userGroupMlrtPools[i].mlrt
+                let mlrt = MLRT.bind(mlrtAddress as Address)
+                let try_exchangeRateToNative = mlrt.try_exchangeRateToNative()
+                let exchangeRateToNative = (try_exchangeRateToNative.reverted) ? ETHER_ONE : try_exchangeRateToNative.value
 
-  // BigInt and BigDecimal math are supported
-  entity.count = entity.count + BigInt.fromI32(1)
+                userGroupMlrtPools[i].totalTvl = userGroupMlrtPools[i].totalAmount.times(exchangeRateToNative).div(ETHER_ONE)
+                let timeDiff = userGroupMlrtPools[i].lastUpdateTimestamp.minus(event.block.timestamp)
+                let earnedEigenLayerPoint = userGroupMlrtPools[i].totalTvl.times(timeDiff).times(EIGEN_LAYER_POINT_PER_SEC).div(ETHER_ONE)
+                userGroupMlrtPools[i].accumulateEigenLayerPoints = userGroupMlrtPools[i].accumulateEigenLayerPoints.plus(earnedEigenLayerPoint)
+                userGroupMlrtPools[i].accEigenLayerPointPerShare = userGroupMlrtPools[i].accumulateEigenLayerPoints.times(ETHER_ONE).div(userGroupMlrtPools[i].totalTvl)
+                userGroupMlrtPools[i].lastUpdateTimestamp = event.block.timestamp
+                userGroupMlrtPools[i].save()
+            }
 
-  // Entity fields can be set based on event parameters
-  entity.previousAdmin = event.params.previousAdmin
-  entity.newAdmin = event.params.newAdmin
+            for (let i = 0; i < referrerGroupMlrtPools.length; i++) {
+                let mlrtAddress = referrerGroupMlrtPools[i].mlrt
+                let mlrt = MLRT.bind(mlrtAddress as Address)
+                let try_exchangeRateToNative = mlrt.try_exchangeRateToNative()
+                let exchangeRateToNative = (try_exchangeRateToNative.reverted) ? ETHER_ONE : try_exchangeRateToNative.value
 
-  // Entities can be written to the store with `.save()`
-  entity.save()
+                referrerGroupMlrtPools[i].totalTvl = referrerGroupMlrtPools[i].totalAmount.times(exchangeRateToNative).div(ETHER_ONE)
+                let timeDiff = referrerGroupMlrtPools[i].lastUpdateTimestamp.minus(event.block.timestamp)
+                let earnedEigenLayerPoint = referrerGroupMlrtPools[i].totalTvl.times(timeDiff).times(EIGEN_LAYER_POINT_PER_SEC).div(ETHER_ONE)
+                referrerGroupMlrtPools[i].accumulateEigenLayerPoints = referrerGroupMlrtPools[i].accumulateEigenLayerPoints.plus(earnedEigenLayerPoint)
+                referrerGroupMlrtPools[i].accEigenLayerPointPerShare = referrerGroupMlrtPools[i].accumulateEigenLayerPoints.times(ETHER_ONE).div(referrerGroupMlrtPools[i].totalTvl)
+                referrerGroupMlrtPools[i].lastUpdateTimestamp = event.block.timestamp
+                referrerGroupMlrtPools[i].save()
+            }
 
-  // Note: If a handler doesn't require existing field values, it is faster
-  // _not_ to load the entity from the store. Instead, create it fresh with
-  // `new Entity(...)`, set the fields that should be updated and save the
-  // entity back to the store. Fields that were not set or unset remain
-  // unchanged, allowing for partial updates to be applied.
+            for (let i = 0; i < userGroupMlrtPools.length; i++) {
+                let mlrtAddress = userGroupMlrtPools[i].mlrt
+                let groupMlrtPoolStatusToMerge = loadOrCreateGroupMlrtPoolStatus(referrerGroup.id, mlrtAddress)
+                groupMlrtPoolStatusToMerge.totalTvl = groupMlrtPoolStatusToMerge.totalTvl.plus(userGroupMlrtPools[i].totalTvl)
+                groupMlrtPoolStatusToMerge.totalAmount = groupMlrtPoolStatusToMerge.totalAmount.plus(userGroupMlrtPools[i].totalAmount)
+                groupMlrtPoolStatusToMerge.totalUnmintedMlrt = groupMlrtPoolStatusToMerge.totalUnmintedMlrt.plus(userGroupMlrtPools[i].totalUnmintedMlrt)
+                groupMlrtPoolStatusToMerge.accumulateEigenLayerPoints = groupMlrtPoolStatusToMerge.accumulateEigenLayerPoints.plus(userGroupMlrtPools[i].accumulateEigenLayerPoints)
+                groupMlrtPoolStatusToMerge.accumulateEigenpiePoints = groupMlrtPoolStatusToMerge.accumulateEigenpiePoints.plus(userGroupMlrtPools[i].accumulateEigenpiePoints)
+                groupMlrtPoolStatusToMerge.accEigenLayerPointPerShare = groupMlrtPoolStatusToMerge.accumulateEigenLayerPoints.times(ETHER_ONE).div(groupMlrtPoolStatusToMerge.totalTvl)
+                groupMlrtPoolStatusToMerge.accEigenLayerPointPerShare = groupMlrtPoolStatusToMerge.accumulateEigenLayerPoints.times(ETHER_ONE).div(groupMlrtPoolStatusToMerge.totalTvl)
+                groupMlrtPoolStatusToMerge.lastUpdateTimestamp = event.block.timestamp
+                groupMlrtPoolStatusToMerge.save()
 
-  // It is also possible to access smart contracts from mappings. For
-  // example, the contract that has emitted the event can be connected to
-  // with:
-  //
-  // let contract = Contract.bind(event.address)
-  //
-  // The following functions can then be called on this contract to access
-  // state variables and other data:
-  //
-  // None
+                store.remove("GroupMlrtPoolStatus", referrerGroupMlrtPools[i].id.toHexString()) // remove useless pool status from store
+            }
+
+            let userGroupMembers = userGroup.members.load()
+            for (let i = 0; i < userGroupMembers.length; i++) {
+                let member = UserData.load(userGroupMembers[i].id)!
+                member.referralGroup = referrerGroup.id
+                member.save()
+            }
+
+            store.remove("ReferralGroup", userGroup.id.toHexString()) // remove empty group from store
+            userGroup = referrerGroup // re-assign referrer's group as user's group
+            let newGroupBoost = calEigenpiePointGroupBoost(userGroup.mlrtPoolStatus.load())
+            userGroup.groupTVL = newGroupBoost[0]
+            userGroup.groupBoost = newGroupBoost[1]
+            userGroup.save()
+
+            let referralStatus = loadReferralStatus()
+            referralStatus.totalGroups--
+            referralStatus.save()
+        }
+    }
+
+    // 
 }
-
-export function handleBeaconUpgraded(event: BeaconUpgraded): void {}
-
-export function handleUpgraded(event: Upgraded): void {}

@@ -1,30 +1,56 @@
-type ExampleEntity @entity {
+type ReferralStatus @entity(immutable: false) {
   id: Bytes!
-  count: BigInt!
-  previousAdmin: Bytes! # address
-  newAdmin: Bytes! # address
-}
-type EigenpieConfigAdminChanged @entity(immutable: true) {
-  id: Bytes!
-  previousAdmin: Bytes! # address
-  newAdmin: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+  totalUsers: Int!
+  totalGroups: Int!
 }
 
-type EigenpieConfigBeaconUpgraded @entity(immutable: true) {
+type GroupMlrtPoolStatus @entity(immutable: false) {
   id: Bytes!
-  beacon: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+  group: ReferralGroup!
+  mlrt: TrackedMLRT!
+  totalTvl: BigInt!
+  totalAmount: BigInt!
+  totalUnmintedMlrt: BigInt!
+  accumulateEigenLayerPoints: BigInt!
+  accumulateEigenpiePoints: BigInt!
+  accEigenLayerPointPerShare: BigInt!
+  accEigenpiePointPerShare: BigInt!
+  lastUpdateTimestamp: BigInt!
 }
 
-type EigenpieConfigUpgraded @entity(immutable: true) {
+type UserData @entity {
   id: Bytes!
-  implementation: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+  referrer: Bytes!
+  referralGroup: ReferralGroup!
+  referralCount: Int!
+  mLrtPools: [UserPoolDepositData!]! @derivedFrom(field: "user")
+  # curvePools
+  # rangePools
+}
+
+type UserPoolDepositData @entity {
+  id: Bytes!
+  user: UserData!
+  mlrt: TrackedMLRT!
+  amount: BigInt!
+  unmintedMlrt: BigInt!
+  eigenLayerPoints: BigInt!
+  eigenpiePoints: BigInt!
+  eigenLayerPointsDebt: BigInt!
+  eigenpiePointsDebt: BigInt!
+}
+
+type ReferralGroup @entity {
+  id: Bytes!
+  members: [UserData!]! @derivedFrom(field: "referralGroup")
+  mlrtPoolStatus: [GroupMlrtPoolStatus!]! @derivedFrom(field: "group")
+  groupTVL: BigInt!
+  groupBoost: BigInt!
+}
+
+type TrackedMLRT @entity(immutable: true) {
+  id: Bytes!
+  underlying: Bytes!
+  strategy: Bytes!
+  addedTimestamp: BigInt!
 }

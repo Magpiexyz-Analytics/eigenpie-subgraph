@@ -16,19 +16,18 @@ dataSources:
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
-        - AdminChanged
-        - BeaconUpgraded
-        - Upgraded
+        - AssetDeposit
       abis:
         - name: EigenpieStaking
           file: ./abis/EigenpieStaking.json
+        - name: EigenpieConfig
+          file: ./abis/EigenpieConfig.json
+        - name: MLRT
+          file: ./abis/MLRT.json
       eventHandlers:
-        - event: AdminChanged(address,address)
-          handler: handleAdminChanged
-        - event: BeaconUpgraded(indexed address)
-          handler: handleBeaconUpgraded
-        - event: Upgraded(indexed address)
-          handler: handleUpgraded
+        - event: AssetDeposit(indexed address,indexed address,uint256,indexed
+            address,uint256,bool)
+          handler: handleAssetDeposit
       file: ./src/eigenpie-staking.ts
   - kind: ethereum
     name: EigenpieConfig
@@ -42,17 +41,34 @@ dataSources:
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
-        - EigenpieConfigAdminChanged
-        - EigenpieConfigBeaconUpgraded
-        - EigenpieConfigUpgraded
+        - AddedNewSupportedAsset
       abis:
         - name: EigenpieConfig
           file: ./abis/EigenpieConfig.json
       eventHandlers:
-        - event: AdminChanged(address,address)
-          handler: handleAdminChanged
-        - event: BeaconUpgraded(indexed address)
-          handler: handleBeaconUpgraded
-        - event: Upgraded(indexed address)
-          handler: handleUpgraded
+        - event: AddedNewSupportedAsset(indexed address,indexed address,uint256)
+          handler: handleAddedNewSupportedAsset
+        - event: AssetStrategyUpdate(indexed address,indexed address)
+          handler: handleAssetStrategyUpdate
+        - event: ReceiptTokenUpdated(indexed address,indexed address)
+          handler: handleReceiptTokenUpdated
       file: ./src/eigenpie-config.ts
+templates:
+  - name: MLRT
+    kind: ethereum/contract
+    network: mainnet
+    source:
+      abi: MLRT
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/MLRT.ts
+      entities:
+        - MLRT
+      abis:
+        - name: MLRT
+          file: ./abis/MLRT.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer

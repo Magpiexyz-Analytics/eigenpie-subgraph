@@ -1,46 +1,33 @@
-import {
-  AdminChanged as AdminChangedEvent,
-  BeaconUpgraded as BeaconUpgradedEvent,
-  Upgraded as UpgradedEvent,
-} from "../generated/EigenpieConfig/EigenpieConfig"
-import { AdminChanged, BeaconUpgraded, Upgraded } from "../generated/schema"
+import { AddedNewSupportedAsset as AddedNewSupportedAssetEvent, ReceiptTokenUpdated as ReceiptTokenUpdatedEvent, AssetStrategyUpdate as AssetStrategyUpdateEvent, EigenpieConfig } from "../generated/EigenpieConfig/EigenpieConfig"
+import { MLRT } from "../generated/templates"
+import { TrackedMLRT } from "../generated/schema"
+import { ADDRESS_ZERO } from "./constants"
 
-export function handleAdminChanged(event: AdminChangedEvent): void {
-  let entity = new AdminChanged(
-    event.transaction.hash.concatI32(event.logIndex.toI32()),
-  )
-  entity.previousAdmin = event.params.previousAdmin
-  entity.newAdmin = event.params.newAdmin
+export function handleAddedNewSupportedAsset(event: AddedNewSupportedAssetEvent): void {
+  MLRT.create(event.params.receipt);
 
-  entity.blockNumber = event.block.number
-  entity.blockTimestamp = event.block.timestamp
-  entity.transactionHash = event.transaction.hash
-
-  entity.save()
+  let trackedMLRT = new TrackedMLRT(event.params.receipt)
+  trackedMLRT.underlying = event.params.asset
+  trackedMLRT.strategy = ADDRESS_ZERO
+  trackedMLRT.addedTimestamp = event.block.timestamp
+  trackedMLRT.save()
 }
 
-export function handleBeaconUpgraded(event: BeaconUpgradedEvent): void {
-  let entity = new BeaconUpgraded(
-    event.transaction.hash.concatI32(event.logIndex.toI32()),
-  )
-  entity.beacon = event.params.beacon
+export function handleReceiptTokenUpdated(event: ReceiptTokenUpdatedEvent): void {
+  MLRT.create(event.params.receipt);
 
-  entity.blockNumber = event.block.number
-  entity.blockTimestamp = event.block.timestamp
-  entity.transactionHash = event.transaction.hash
-
-  entity.save()
+  let trackedMLRT = new TrackedMLRT(event.params.receipt)
+  trackedMLRT.underlying = event.params.asset
+  trackedMLRT.strategy = ADDRESS_ZERO
+  trackedMLRT.addedTimestamp = event.block.timestamp
+  trackedMLRT.save()
 }
 
-export function handleUpgraded(event: UpgradedEvent): void {
-  let entity = new Upgraded(
-    event.transaction.hash.concatI32(event.logIndex.toI32()),
-  )
-  entity.implementation = event.params.implementation
-
-  entity.blockNumber = event.block.number
-  entity.blockTimestamp = event.block.timestamp
-  entity.transactionHash = event.transaction.hash
-
-  entity.save()
+export function handleAssetStrategyUpdate(event: AssetStrategyUpdateEvent): void {
+  let eigenpieConfig = EigenpieConfig.bind(event.address)
+  let trackedMLRT = TrackedMLRT.load(eigenpieConfig.mLRTReceiptByAsset(event.params.asset))
+  if (trackedMLRT) {
+    trackedMLRT.strategy = event.params.strategy
+    trackedMLRT.save()
+  }
 }
