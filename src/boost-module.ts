@@ -6,10 +6,12 @@ export function calEigenpiePointGroupBoost(mlrtPoolStatuses: GroupMlrtPoolStatus
     let boostMultiplier = DENOMINATOR
     let totalTvl = BIGINT_ZERO
 
+    // Sum total TVL across all mlrtPoolStatuses
     for (let i = 0; i < mlrtPoolStatuses.length; i++) {
         totalTvl = totalTvl.plus(mlrtPoolStatuses[i].totalTvl)
     }
 
+    // Define TVL thresholds and their corresponding boost values
     const tvlThresholds: BigInt[] = [
         BigInt.fromI32(100).times(ETHER_ONE),
         BigInt.fromI32(500).times(ETHER_ONE),
@@ -20,6 +22,7 @@ export function calEigenpiePointGroupBoost(mlrtPoolStatuses: GroupMlrtPoolStatus
 
     const boostValues = [12000, 14000, 16000, 18000, 20000]
 
+    // Determine the boost multiplier based on the total TVL
     for (let i = tvlThresholds.length - 1; i >= 0; i--) {
         if (totalTvl.ge(tvlThresholds[i])) {
             boostMultiplier = BigInt.fromI32(boostValues[i])
