@@ -5,29 +5,52 @@ import { UserData, ReferralGroup, ReferralStatus, UserPoolDepositData, GroupMlrt
 
 export function loadOrCreateUserData(userAddress: Bytes, referrerAddr: Bytes = ADDRESS_ZERO_BYTES): UserData {
     let user = UserData.load(userAddress)
-    if (!user) {
-        let referrer: UserData | null = null
-        let referralGroup: ReferralGroup
-        if (referrerAddr.notEqual(ADDRESS_ZERO_BYTES) && referrerAddr.notEqual(userAddress)) {
-            referrer = loadOrCreateUserData(referrerAddr)
-            referralGroup = loadOrCreateReferralGroup(referrer.referralGroup)
-            referrer.referralCount++
-            referrer.save()
-        } else {
-            referralGroup = loadOrCreateReferralGroup(userAddress)
-        }
-        user = new UserData(userAddress)
-        user.referrer = (referrer) ? referrer.id : ADDRESS_ZERO_BYTES
-        user.referralGroup = referralGroup.id
-        user.referralCount = 0
-
-        user.save()
-
-        let referralStatus = loadReferralStatus()
-        referralStatus.totalUsers++
-        referralStatus.save()
+    
+    // Return the existing user if found
+    if (user) {
+        return user;
     }
-    return user
+    
+    // Initialize a new user if not found
+    user = new UserData(userAddress);
+    user.referralCount = 0;
+
+    // Determine the referrer and referral group
+    if (isValidReferrer(referrerAddr, userAddress)) {
+        const referrer = loadOrCreateUserData(referrerAddr);
+        const referralGroup = loadOrCreateReferralGroup(referrer.referralGroup);
+
+        // Update referrer's referral count and save
+        referrer.referralCount++;
+        referrer.save();
+
+        // Set user's referrer and referral group
+        user.referrer = referrer.id;
+        user.referralGroup = referralGroup.id;
+    } else {
+        // Handle case with no valid referrer
+        const referralGroup = loadOrCreateReferralGroup(userAddress);
+        user.referrer = ADDRESS_ZERO_BYTES;
+        user.referralGroup = referralGroup.id;
+    }
+
+    // Save the new user and update referral status
+    user.save();
+    updateReferralStatus();
+
+    return user;
+}
+
+// Helper function to check if the referrer address is valid
+function isValidReferrer(referrerAddr: Bytes, userAddress: Bytes): boolean {
+    return referrerAddr.notEqual(ADDRESS_ZERO_BYTES) && referrerAddr.notEqual(userAddress);
+}
+
+// Helper function to update total users in referral status
+function updateReferralStatus(): void {
+    let referralStatus = loadReferralStatus();
+    referralStatus.totalUsers++;
+    referralStatus.save();
 }
 
 export function loadOrCreateReferralGroup(groupID: Bytes): ReferralGroup {
