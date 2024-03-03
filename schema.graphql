@@ -32,13 +32,18 @@ type GroupPartnerLpStatus @entity(immutable: false) {
   lastUpdateTimestamp: BigInt!
 }
 
+type PartnerLpStatus @entity(immutable: false) {
+  id: Bytes!
+  holdingGroups: [GroupPartnerLpStatus!]!
+}
+
 type UserData @entity {
   id: Bytes!
   referrer: Bytes!
   referralGroup: ReferralGroup!
   referralCount: Int!
   mLrtPools: [UserPoolDepositData!]! @derivedFrom(field: "user")
-  # curvePools: [UserPoolDepositData!]! @derivedFrom(field: "prtotcol")
+  curvePools: [UserPartnerLpDepositData!]! @derivedFrom(field: "user")
   # rangePools
 }
 

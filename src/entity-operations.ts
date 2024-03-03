@@ -1,14 +1,14 @@
 import { Address, BigInt, Bytes, crypto } from "@graphprotocol/graph-ts"
-import { DENOMINATOR, ADDRESS_ZERO, BIGINT_ZERO, ETHER_ONE, EIGEN_POINT_LAUNCH_TIME, BYTES_ZERO } from "./constants"
+import { DENOMINATOR, ADDRESS_ZERO_BYTES, BIGINT_ZERO, ETHER_ONE, EIGEN_POINT_LAUNCH_TIME, BYTES_ZERO } from "./constants"
 import { MLRT } from "../generated/templates/MLRT/MLRT"
-import { UserData, ReferralGroup, ReferralStatus, UserPoolDepositData, GroupMlrtPoolStatus } from "../generated/schema"
+import { UserData, ReferralGroup, ReferralStatus, UserPoolDepositData, GroupMlrtPoolStatus, GroupPartnerLpStatus, UserPartnerLpDepositData } from "../generated/schema"
 
-export function loadOrCreateUserData(userAddress: Bytes, referrerAddr: Bytes = ADDRESS_ZERO): UserData {
+export function loadOrCreateUserData(userAddress: Bytes, referrerAddr: Bytes = ADDRESS_ZERO_BYTES): UserData {
     let user = UserData.load(userAddress)
     if (!user) {
         let referrer: UserData | null = null
         let referralGroup: ReferralGroup
-        if (referrerAddr.notEqual(ADDRESS_ZERO) && referrerAddr.notEqual(userAddress)) {
+        if (referrerAddr.notEqual(ADDRESS_ZERO_BYTES) && referrerAddr.notEqual(userAddress)) {
             referrer = loadOrCreateUserData(referrerAddr)
             referralGroup = loadOrCreateReferralGroup(referrer.referralGroup)
             referrer.referralCount++
@@ -17,7 +17,7 @@ export function loadOrCreateUserData(userAddress: Bytes, referrerAddr: Bytes = A
             referralGroup = loadOrCreateReferralGroup(userAddress)
         }
         user = new UserData(userAddress)
-        user.referrer = (referrer) ? referrer.id : ADDRESS_ZERO
+        user.referrer = (referrer) ? referrer.id : ADDRESS_ZERO_BYTES
         user.referralGroup = referralGroup.id
         user.referralCount = 0
 
@@ -84,6 +84,44 @@ export function loadOrCreateGroupMlrtPoolStatus(groupId: Bytes, mlrtAddress: Byt
     }
 
     return mlrtPoolStatus
+}
+
+export function loadOrCreateGroupPartnerLpStatus(groupId: Bytes, lpAddress: Bytes, prtotcol: string): GroupPartnerLpStatus {
+    let lpPoolStatus = GroupPartnerLpStatus.load(groupId.concat(lpAddress))
+
+    if (!lpPoolStatus) {
+        lpPoolStatus = new GroupPartnerLpStatus(groupId.concat(lpAddress))
+        lpPoolStatus.group = groupId
+        lpPoolStatus.prtotcol = prtotcol
+        lpPoolStatus.lpAddress = lpAddress
+        lpPoolStatus.totalAmount = BIGINT_ZERO
+        lpPoolStatus.accumulateEigenLayerPoints = BIGINT_ZERO
+        lpPoolStatus.accumulateEigenpiePoints = BIGINT_ZERO
+        lpPoolStatus.accEigenLayerPointPerShare = BIGINT_ZERO
+        lpPoolStatus.accEigenpiePointPerShare = BIGINT_ZERO
+        lpPoolStatus.lastUpdateTimestamp = BIGINT_ZERO
+        lpPoolStatus.save()
+    }
+
+    return lpPoolStatus
+}
+
+export function loadOrCreateUserPartnerLpDepositData(userAddress: Bytes, lpAddress: Bytes, prtotcol: string): UserPartnerLpDepositData {
+    let lpPoolStatus = UserPartnerLpDepositData.load(userAddress.concat(lpAddress))
+
+    if (!lpPoolStatus) {
+        lpPoolStatus = new UserPartnerLpDepositData(userAddress.concat(lpAddress))
+        lpPoolStatus.user = userAddress
+        lpPoolStatus.prtotcol = prtotcol
+        lpPoolStatus.lpAmount = BIGINT_ZERO
+        lpPoolStatus.eigenLayerPoints = BIGINT_ZERO
+        lpPoolStatus.eigenpiePoints = BIGINT_ZERO
+        lpPoolStatus.eigenLayerPointsDebt = BIGINT_ZERO
+        lpPoolStatus.eigenpiePointsDebt = BIGINT_ZERO
+        lpPoolStatus.save()
+    }
+
+    return lpPoolStatus
 }
 
 export function loadReferralStatus(): ReferralStatus {

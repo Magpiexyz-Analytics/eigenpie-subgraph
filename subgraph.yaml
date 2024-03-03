@@ -25,8 +25,9 @@ dataSources:
         - name: MLRT
           file: ./abis/MLRT.json
       eventHandlers:
-        - event: AssetDeposit(indexed address,indexed address,uint256,indexed
-            address,uint256,bool)
+        - event: AssetDeposit(indexed address,indexed address,uint256,indexed address)
+          handler: handleAssetDepositV1
+        - event: AssetDeposit(indexed address,indexed address,uint256,indexed address,uint256,bool)
           handler: handleAssetDeposit
       file: ./src/eigenpie-staking.ts
   - kind: ethereum
@@ -53,6 +54,58 @@ dataSources:
         - event: ReceiptTokenUpdated(indexed address,indexed address)
           handler: handleReceiptTokenUpdated
       file: ./src/eigenpie-config.ts
+  - kind: ethereum
+    name: CurveLP-mst-wstETH
+    network: mainnet
+    source:
+      abi: CurveLP
+      address: "0xC040041088B008EAC1bf5FB886eAc8c1e244B60F"
+      startBlock: 19188963
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - AssetTransferLP
+      abis:
+        - name: CurveLP
+          file: ./abis/CurveLp.json
+        - name: MLRT
+          file: ./abis/MLRT.json
+        - name: CurveAsset
+          file: ./abis/CurveAsset.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+        - event: TokenExchange(indexed address,int128,uint256,int128,uint256)
+          handler: handleTokenExchange
+      file: ./src/CurveLp.ts
+  - kind: ethereum
+    name: CurveLP-msw-swETH
+    network: mainnet
+    source:
+      abi: CurveLP
+      address: "0x2022d9AF896eCF0F1f5B48cdDaB9e74b5aAbCf00"
+      startBlock: 19189942
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - AssetTransferLP
+      abis:
+        - name: CurveLP
+          file: ./abis/CurveLp.json
+        - name: MLRT
+          file: ./abis/MLRT.json
+        - name: CurveAsset
+          file: ./abis/CurveAsset.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+        - event: TokenExchange(indexed address,int128,uint256,int128,uint256)
+          handler: handleTokenExchange
+      file: ./src/CurveLp.ts
 templates:
   - name: MLRT
     kind: ethereum/contract
