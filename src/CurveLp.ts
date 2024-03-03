@@ -5,7 +5,7 @@ import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_ZERO, DENOMINATOR, EIGENPIE_POINT_PER_
 import { loadOrCreateGroupPartnerLpStatus, loadOrCreateReferralGroup, loadOrCreateUserData, loadOrCreateUserPartnerLpDepositData } from "./entity-operations"
 import { BigInt } from "@graphprotocol/graph-ts"
 import { PartnerLpStatus } from "../generated/schema"
-import { calEigenpiePointGroupBoost, extraBoost } from "./boost-module"
+import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
 
 /** Event Handlers */
 
@@ -40,7 +40,7 @@ export function handleTokenExchange(event: TokenExchangeEvent): void {
         // for eigenpie points
         let curveLpTvlEth = token0AmountETH.plus(token1AmountETH)
         let earnedEigenpiePoint = curveLpTvlEth.times(timeDiff).times(EIGENPIE_POINT_PER_SEC).div(ETHER_ONE)
-        let boostedEigenpiePoint = earnedEigenpiePoint.times(groupData.groupBoost).times(extraBoost(event.block.timestamp)).div(DENOMINATOR.pow(2))
+        let boostedEigenpiePoint = earnedEigenpiePoint.times(groupData.groupBoost).times(globalBoost(event.block.timestamp)).div(DENOMINATOR.pow(2))
         groupCurveLpStatus.accumulateEigenpiePoints = groupCurveLpStatus.accumulateEigenpiePoints.plus(boostedEigenpiePoint)
         groupCurveLpStatus.accEigenpiePointPerShare = (groupCurveLpStatus.totalAmount.gt(BIGINT_ZERO)) ? groupCurveLpStatus.accumulateEigenpiePoints.times(ETHER_ONE).div(groupCurveLpStatus.totalAmount) : BIGINT_ZERO
         groupCurveLpStatus.save()

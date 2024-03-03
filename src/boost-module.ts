@@ -33,7 +33,7 @@ export function calEigenpiePointGroupBoost(mlrtPoolStatuses: GroupMlrtPoolStatus
     return [boostMultiplier, totalTvl]
 }
 
-export function extraBoost(timestamp: BigInt): BigInt {
+export function globalBoost(timestamp: BigInt): BigInt {
     let boost = DENOMINATOR
 
     // Launch boost event

@@ -3,7 +3,7 @@ import { Transfer as TransferEvent, MLRT } from "../generated/templates/MLRT/MLR
 import { ADDRESS_ZERO, BIGINT_ZERO, DENOMINATOR, EIGEN_POINT_LAUNCH_TIME, ETHER_ONE, EIGEN_LAYER_POINT_PER_SEC, EIGENPIE_PREDEPLOST_HELPER, EIGENPIE_POINT_PER_SEC } from "./constants"
 import { ReferralGroup } from "../generated/schema"
 import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateUserData, loadOrCreateUserDepositData } from "./entity-operations"
-import { calEigenpiePointGroupBoost, extraBoost } from "./boost-module"
+import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
 
 const MST_WST_ETH_LP = Address.fromHexString("0xC040041088B008EAC1bf5FB886eAc8c1e244B60F")
 const MSW_SW_ETH_LP = Address.fromHexString("0x2022d9AF896eCF0F1f5B48cdDaB9e74b5aAbCf00")
@@ -82,7 +82,7 @@ function depopsitHandler(event: TransferEvent, isPreDeposit: boolean): void {
     let totalTvlForEigenpie = previousTotalTvl.plus(unmintedMlrtTvl)
     // Todo: if boost during the time diff
     let earnedEigenpiePoint = totalTvlForEigenpie.times(timeDiff).times(EIGENPIE_POINT_PER_SEC).div(ETHER_ONE)
-    let boostedEigenpiePoint = earnedEigenpiePoint.times(groupData!.groupBoost).times(extraBoost(event.block.timestamp)).div(DENOMINATOR.pow(2))
+    let boostedEigenpiePoint = earnedEigenpiePoint.times(groupData!.groupBoost).times(globalBoost(event.block.timestamp)).div(DENOMINATOR.pow(2))
     mlrtPoolStatus.accumulateEigenpiePoints = mlrtPoolStatus.accumulateEigenpiePoints.plus(boostedEigenpiePoint)
     mlrtPoolStatus.accEigenpiePointPerShare = (mlrtPoolStatus.totalAmount.gt(BIGINT_ZERO)) ? mlrtPoolStatus.accumulateEigenpiePoints.times(ETHER_ONE).div(mlrtPoolStatus.totalAmount) : BIGINT_ZERO
 
@@ -138,7 +138,7 @@ function exchangeHandler(event: TransferEvent, isBuy: boolean): void {
     let totalTvlForEigenpie = previousTotalTvl.plus(unmintedMlrtTvl)
     // Todo: if boost during the time diff
     let earnedEigenpiePoint = totalTvlForEigenpie.times(timeDiff).times(EIGENPIE_POINT_PER_SEC).div(ETHER_ONE)
-    let boostedEigenpiePoint = earnedEigenpiePoint.times(groupData!.groupBoost).times(extraBoost(event.block.timestamp)).div(DENOMINATOR.pow(2))
+    let boostedEigenpiePoint = earnedEigenpiePoint.times(groupData!.groupBoost).times(globalBoost(event.block.timestamp)).div(DENOMINATOR.pow(2))
     mlrtPoolStatus.accumulateEigenpiePoints = mlrtPoolStatus.accumulateEigenpiePoints.plus(boostedEigenpiePoint)
     mlrtPoolStatus.accEigenpiePointPerShare = (mlrtPoolStatus.totalAmount.gt(BIGINT_ZERO)) ? mlrtPoolStatus.accumulateEigenpiePoints.times(ETHER_ONE).div(mlrtPoolStatus.totalAmount) : BIGINT_ZERO
 

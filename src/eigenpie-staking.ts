@@ -4,7 +4,7 @@ import { UserData, ReferralGroup, UserPoolDepositData, GroupMlrtPoolStatus } fro
 import { MLRT } from "../generated/templates/MLRT/MLRT"
 import { ADDRESS_ZERO, BIGINT_ZERO, EIGENPIE_POINT_PER_SEC, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE } from "./constants"
 import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateReferralGroup, loadOrCreateUserData, loadOrCreateUserDepositData, loadReferralStatus } from "./entity-operations"
-import { calEigenpiePointGroupBoost } from "./boost-module"
+import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
 import { log } from '@graphprotocol/graph-ts'
 
 export function handleAssetDepositV1(event: AssetDepositEventV1): void {
@@ -133,7 +133,7 @@ function mergeMlrtPoolsFromUserToReferrerGroup(userGroup: ReferralGroup, referre
 function mergeSingleMlrtPool(userGroupMlrtPool: GroupMlrtPoolStatus, referrerGroup: ReferralGroup, blockTimestamp: BigInt): void {
     let referrerGroupMlrtPool = loadOrCreateGroupMlrtPoolStatus(referrerGroup.id, userGroupMlrtPool.mlrt);
     // Update referrer group's points variables to be up-to-date
-    updateReferrerGroupMlrtPoolPoints(referrerGroupMlrtPool, blockTimestamp);
+    updateReferrerGroupMlrtPoolPoints(referrerGroupMlrtPool, referrerGroup, blockTimestamp);
 
     // Update referrer group's mLrt pool with user group's mLrt pool data
     referrerGroupMlrtPool.totalTvl = referrerGroupMlrtPool.totalTvl.plus(userGroupMlrtPool.totalTvl);
@@ -144,14 +144,14 @@ function mergeSingleMlrtPool(userGroupMlrtPool: GroupMlrtPoolStatus, referrerGro
     store.remove("GroupMlrtPoolStatus", userGroupMlrtPool.id.toHexString());
 }
 
-function updateReferrerGroupMlrtPoolPoints(pool: GroupMlrtPoolStatus, blockTimestamp: BigInt): void {
+function updateReferrerGroupMlrtPoolPoints(pool: GroupMlrtPoolStatus, group: ReferralGroup, blockTimestamp: BigInt): void {
     const timeDiff = blockTimestamp.minus(pool.lastUpdateTimestamp);
 
     const earnedEigenLayerPoints = calculateEarnedPoints(pool.totalTvl, timeDiff, EIGEN_LAYER_POINT_PER_SEC);
     pool.accumulateEigenLayerPoints = pool.accumulateEigenLayerPoints.plus(earnedEigenLayerPoints);
     pool.accEigenLayerPointPerShare = calculatePointsPerShare(pool.accumulateEigenLayerPoints, pool.totalAmount);
 
-    const earnedEigenpiePoints = calculateEarnedPoints(pool.totalTvl, timeDiff, EIGENPIE_POINT_PER_SEC);
+    const earnedEigenpiePoints = calculateEarnedPoints(pool.totalTvl, timeDiff, EIGENPIE_POINT_PER_SEC.times(group.groupBoost).times(globalBoost(blockTimestamp)));
     pool.accumulateEigenpiePoints = pool.accumulateEigenpiePoints.plus(earnedEigenpiePoints);
     pool.accEigenpiePointPerShare = calculatePointsPerShare(pool.accumulateEigenpiePoints, pool.totalAmount.plus(pool.totalUnmintedMlrt));
     pool.lastUpdateTimestamp = blockTimestamp;
