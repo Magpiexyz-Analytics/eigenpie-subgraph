@@ -6,6 +6,7 @@ import { ADDRESS_ZERO, BIGINT_ZERO, EIGENPIE_POINT_PER_SEC, EIGEN_LAYER_POINT_PE
 import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateReferralGroup, loadOrCreateUserData, loadOrCreateUserDepositData, loadReferralStatus } from "./entity-operations"
 import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
 import { log } from '@graphprotocol/graph-ts'
+import { calculatePoolEarnedPoints, harvestPointsForGroupMlrtPool, harvestPointsForUserFromMlrtPool } from "./common"
 
 export function handleAssetDepositV1(event: AssetDepositEventV1): void {
     assetDepositHandler(
@@ -73,7 +74,7 @@ function harvestPointsForGroupMembers(userGroup: ReferralGroup, referrerGroup: R
     // Harvest points for userGroupMembers and update their referralGroup
     for (let i = 0; i < userGroupMembers.length; i++) {
         let member = userGroupMembers[i];
-        harvestPoints(member, userGroup);
+        harvestPointsForUserForAllMlrtPools(member, userGroup);
         member.referralGroup = referrerGroup.id;
         member.save();
     }
@@ -81,41 +82,16 @@ function harvestPointsForGroupMembers(userGroup: ReferralGroup, referrerGroup: R
     // Harvest points for referrerGroupMembers
     for (let i = 0; i < referrerGroupMembers.length; i++) {
         let member = referrerGroupMembers[i];
-        harvestPoints(member, referrerGroup);
+        harvestPointsForUserForAllMlrtPools(member, referrerGroup);
     }
 }
 
-function harvestPoints(member: UserData, group: ReferralGroup): void {
+function harvestPointsForUserForAllMlrtPools(member: UserData, group: ReferralGroup): void {
     const mLrtPools = member.mLrtPools.load();
     for (let i = 0; i < mLrtPools.length; i++) {
-        harvestPointsForPool(mLrtPools[i], member, group);
+        harvestPointsForUserFromMlrtPool(mLrtPools[i], member, group);
     }
 }
-
-function harvestPointsForPool(mLrtPool: UserPoolDepositData, member: UserData, group: ReferralGroup): void {
-    const mlrt = MLRT.bind(Address.fromBytes(mLrtPool.mlrt));
-    const mlrtPoolStatus = loadOrCreateGroupMlrtPoolStatus(group.id, mLrtPool.mlrt);
-    const userPoolDepositData = loadOrCreateUserDepositData(member.id, mlrt.underlyingAsset() as Bytes, mLrtPool.mlrt);
-
-    updateEigenLayerPoints(userPoolDepositData, mlrtPoolStatus);
-    updateEigenpiePoints(userPoolDepositData, mlrtPoolStatus);
-
-    userPoolDepositData.save();
-}
-
-function updateEigenLayerPoints(depositData: UserPoolDepositData, poolStatus: GroupMlrtPoolStatus): void {
-    const accPointsEarned = depositData.mlrtAmount.times(poolStatus.accEigenLayerPointPerShare).div(ETHER_ONE);
-    depositData.eigenLayerPoints = depositData.eigenLayerPoints.plus(accPointsEarned.minus(depositData.eigenLayerPointsDebt));
-    depositData.eigenLayerPointsDebt = accPointsEarned;
-}
-
-function updateEigenpiePoints(depositData: UserPoolDepositData, poolStatus: GroupMlrtPoolStatus): void {
-    const totalMlrt = depositData.mlrtAmount.plus(depositData.unmintedMlrt);
-    const accPointsEarned = totalMlrt.times(poolStatus.accEigenpiePointPerShare).div(ETHER_ONE);
-    depositData.eigenpiePoints = depositData.eigenpiePoints.plus(accPointsEarned.minus(depositData.eigenpiePointsDebt));
-    depositData.eigenpiePointsDebt = accPointsEarned;
-}
-
 
 function mergeGroups(userGroup: ReferralGroup, referrerGroup: ReferralGroup, blockTimestamp: BigInt): void {
     mergeMlrtPoolsFromUserToReferrerGroup(userGroup, referrerGroup, blockTimestamp);
@@ -131,41 +107,19 @@ function mergeMlrtPoolsFromUserToReferrerGroup(userGroup: ReferralGroup, referre
 }
 
 function mergeSingleMlrtPool(userGroupMlrtPool: GroupMlrtPoolStatus, referrerGroup: ReferralGroup, blockTimestamp: BigInt): void {
+    let mlrt = MLRT.bind(userGroupMlrtPool.mlrt);
+    let try_exchangeRateToNative = mlrt.try_exchangeRateToNative()
+    let exchangeRateToNative = (try_exchangeRateToNative.reverted) ? ETHER_ONE : try_exchangeRateToNative.value
     let referrerGroupMlrtPool = loadOrCreateGroupMlrtPoolStatus(referrerGroup.id, userGroupMlrtPool.mlrt);
-    // Update referrer group's points variables to be up-to-date
-    updateReferrerGroupMlrtPoolPoints(referrerGroupMlrtPool, referrerGroup, blockTimestamp);
+    // Update referrer group mLRT pool points variables to be up-to-date
+    harvestPointsForGroupMlrtPool(referrerGroupMlrtPool, referrerGroup, blockTimestamp, exchangeRateToNative);
 
     // Update referrer group's mLrt pool with user group's mLrt pool data
-    referrerGroupMlrtPool.totalTvl = referrerGroupMlrtPool.totalTvl.plus(userGroupMlrtPool.totalTvl);
     referrerGroupMlrtPool.totalAmount = referrerGroupMlrtPool.totalAmount.plus(userGroupMlrtPool.totalAmount);
     referrerGroupMlrtPool.totalUnmintedMlrt = referrerGroupMlrtPool.totalUnmintedMlrt.plus(userGroupMlrtPool.totalUnmintedMlrt);
     referrerGroupMlrtPool.save();
     // Remove the merged user group's mLrt pool status
     store.remove("GroupMlrtPoolStatus", userGroupMlrtPool.id.toHexString());
-}
-
-function updateReferrerGroupMlrtPoolPoints(pool: GroupMlrtPoolStatus, group: ReferralGroup, blockTimestamp: BigInt): void {
-    const timeDiff = blockTimestamp.minus(pool.lastUpdateTimestamp);
-
-    const earnedEigenLayerPoints = calculateEarnedPoints(pool.totalTvl, timeDiff, EIGEN_LAYER_POINT_PER_SEC);
-    pool.accumulateEigenLayerPoints = pool.accumulateEigenLayerPoints.plus(earnedEigenLayerPoints);
-    pool.accEigenLayerPointPerShare = calculatePointsPerShare(pool.accumulateEigenLayerPoints, pool.totalAmount);
-
-    const earnedEigenpiePoints = calculateEarnedPoints(pool.totalTvl, timeDiff, EIGENPIE_POINT_PER_SEC.times(group.groupBoost).times(globalBoost(blockTimestamp)));
-    pool.accumulateEigenpiePoints = pool.accumulateEigenpiePoints.plus(earnedEigenpiePoints);
-    pool.accEigenpiePointPerShare = calculatePointsPerShare(pool.accumulateEigenpiePoints, pool.totalAmount.plus(pool.totalUnmintedMlrt));
-    pool.lastUpdateTimestamp = blockTimestamp;
-}
-
-function calculateEarnedPoints(totalTvl: BigInt, timeDiff: BigInt, pointsPerSec: BigInt): BigInt {
-    return totalTvl.times(timeDiff).times(pointsPerSec).div(ETHER_ONE);
-}
-
-function calculatePointsPerShare(accumulatedPoints: BigInt, totalAmount: BigInt): BigInt {
-    if (totalAmount.equals(BIGINT_ZERO)) {
-        return BIGINT_ZERO;
-    }
-    return accumulatedPoints.times(ETHER_ONE).div(totalAmount);
 }
 
 function finalizeGroupMergeAndCleanup(userGroup: ReferralGroup, referrerGroup: ReferralGroup): void {

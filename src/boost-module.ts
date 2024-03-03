@@ -1,6 +1,7 @@
 import { BigInt } from "@graphprotocol/graph-ts"
 import { GroupMlrtPoolStatus } from "../generated/schema"
 import { BIGINT_ZERO, DENOMINATOR, ETHER_ONE } from "./constants"
+import { MLRT } from "../generated/templates/MLRT/MLRT"
 
 export function calEigenpiePointGroupBoost(mlrtPoolStatuses: GroupMlrtPoolStatus[]): BigInt[] {
     let boostMultiplier = DENOMINATOR
@@ -8,7 +9,10 @@ export function calEigenpiePointGroupBoost(mlrtPoolStatuses: GroupMlrtPoolStatus
 
     // Sum total TVL across all mlrtPoolStatuses
     for (let i = 0; i < mlrtPoolStatuses.length; i++) {
-        totalTvl = totalTvl.plus(mlrtPoolStatuses[i].totalTvl)
+        let mlrt = MLRT.bind(mlrtPoolStatuses[i].mlrt);
+        let try_exchangeRateToNative = mlrt.try_exchangeRateToNative()
+        let exchangeRateToNative = (try_exchangeRateToNative.reverted) ? ETHER_ONE : try_exchangeRateToNative.value
+        totalTvl = totalTvl.plus((mlrtPoolStatuses[i].totalAmount.plus(mlrtPoolStatuses[i].totalUnmintedMlrt)).times(exchangeRateToNative).div(ETHER_ONE));
     }
 
     // Define TVL thresholds and their corresponding boost values
