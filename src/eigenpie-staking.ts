@@ -132,14 +132,13 @@ function mergeMlrtPoolsFromUserToReferrerGroup(userGroup: ReferralGroup, referre
 
 function mergeSingleMlrtPool(userGroupMlrtPool: GroupMlrtPoolStatus, referrerGroup: ReferralGroup, blockTimestamp: BigInt): void {
     let referrerGroupMlrtPool = loadOrCreateGroupMlrtPoolStatus(referrerGroup.id, userGroupMlrtPool.mlrt);
+    // Update referrer group's points variables to be up-to-date
+    updateReferrerGroupMlrtPoolPoints(referrerGroupMlrtPool, blockTimestamp);
 
     // Update referrer group's mLrt pool with user group's mLrt pool data
     referrerGroupMlrtPool.totalTvl = referrerGroupMlrtPool.totalTvl.plus(userGroupMlrtPool.totalTvl);
     referrerGroupMlrtPool.totalAmount = referrerGroupMlrtPool.totalAmount.plus(userGroupMlrtPool.totalAmount);
     referrerGroupMlrtPool.totalUnmintedMlrt = referrerGroupMlrtPool.totalUnmintedMlrt.plus(userGroupMlrtPool.totalUnmintedMlrt);
-
-    updateReferrerGroupMlrtPoolPoints(referrerGroupMlrtPool, blockTimestamp);
-
     referrerGroupMlrtPool.save();
     // Remove the merged user group's mLrt pool status
     store.remove("GroupMlrtPoolStatus", userGroupMlrtPool.id.toHexString());
