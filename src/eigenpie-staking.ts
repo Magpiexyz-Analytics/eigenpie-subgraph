@@ -109,7 +109,7 @@ function mergeMlrtPoolsFromUserToReferrerGroup(userGroup: ReferralGroup, referre
 function mergeSingleMlrtPool(userGroupMlrtPool: GroupMlrtPoolStatus, referrerGroup: ReferralGroup, blockTimestamp: BigInt): void {
     let referrerGroupMlrtPool = loadOrCreateGroupMlrtPoolStatus(referrerGroup.id, userGroupMlrtPool.mlrt);
     // Update referrer group mLRT pool points variables to be up-to-date
-    harvestPointsForGroupMlrtPool(referrerGroupMlrtPool, referrerGroup, blockTimestamp, getExchangeRateToNative(userGroupMlrtPool.mlrt));
+    harvestPointsForGroupMlrtPool(referrerGroupMlrtPool, referrerGroup, blockTimestamp, getExchangeRateToNative(userGroupMlrtPool.mlrt as Address));
 
     // Update referrer group's mLrt pool with user group's mLrt pool data
     referrerGroupMlrtPool.totalAmount = referrerGroupMlrtPool.totalAmount.plus(userGroupMlrtPool.totalAmount);

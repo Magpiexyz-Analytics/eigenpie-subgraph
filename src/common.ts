@@ -112,7 +112,6 @@ function harvesetEigenpiePointsForGroupPartnerLpPool(LpTvlEth: BigInt, pool: Gro
     pool.accEigenpiePointPerShare = calculatePointsPerShare(pool.accumulateEigenpiePoints, pool.totalAmount);
 }
 
-// loadOrCreateUserPartnerLpDepositData(members[i].id, event.address, "Curve")
 export function harvestPointsForUserFromPartnerLpPool(lpAddress: Address, prtotcol: string, user: UserData, group: ReferralGroup): void {
     const mlrtPoolStatus = loadOrCreateGroupPartnerLpStatus(group.id, lpAddress, prtotcol);
     const userPoolDepositData = loadOrCreateUserPartnerLpDepositData(user.id, lpAddress, prtotcol);

@@ -3,7 +3,7 @@ import { CurveAsset } from "../generated/CurveLP-mst-wstETH/CurveAsset"
 import { MLRT } from "../generated/templates/MLRT/MLRT"
 import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_ZERO, DENOMINATOR, EIGENPIE_POINT_PER_SEC, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE } from "./constants"
 import { loadOrCreateGroupPartnerLpStatus, loadOrCreateReferralGroup, loadOrCreateUserData, loadOrCreateUserPartnerLpDepositData } from "./entity-operations"
-import { BigInt } from "@graphprotocol/graph-ts"
+import { BigInt, Bytes } from "@graphprotocol/graph-ts"
 import { PartnerLpStatus } from "../generated/schema"
 import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
 import { getExchangeRateToNative, harvestPointsForGroupPartnerLpPool, harvestPointsForUserFromPartnerLpPool } from "./common"
@@ -65,10 +65,23 @@ function updateLiquidityProvidersPoint(event: TransferEvent): void {
         curveLpStatus.holdingGroups = []
     }
 
-    let userData = loadOrCreateUserData(event.params.receiver)
+    addNewHoldingGroupIfNeeded(event.params.receiver as Bytes, curveLpStatus)
+
+    for (let i = 0; i < curveLpStatus.holdingGroups.length; i++) {
+        let group = loadOrCreateReferralGroup(curveLpStatus.holdingGroups[i])
+        let members = group.members.load()
+
+        for (let j = 0; j < members.length; j++) {
+            harvestPointsForUserFromPartnerLpPool(event.address, "Curve", members[i], group)
+        }
+    }
+}
+
+function addNewHoldingGroupIfNeeded(user: Bytes, curveLpStatus: PartnerLpStatus): void {
+    let userData = loadOrCreateUserData(user)
     if (curveLpStatus.holdingGroups.indexOf(userData.referralGroup) === -1) {
         curveLpStatus.holdingGroups.push(userData.referralGroup)
     }
 
-
+    curveLpStatus.save()
 }
