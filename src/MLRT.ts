@@ -1,10 +1,10 @@
-import { Address, Bytes } from "@graphprotocol/graph-ts"
+import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts"
 import { Transfer as TransferEvent, MLRT } from "../generated/templates/MLRT/MLRT"
 import { ADDRESS_ZERO, BIGINT_ZERO, DENOMINATOR, EIGEN_POINT_LAUNCH_TIME, ETHER_ONE, EIGEN_LAYER_POINT_PER_SEC, EIGENPIE_PREDEPLOST_HELPER, EIGENPIE_POINT_PER_SEC } from "./constants"
 import { ReferralGroup } from "../generated/schema"
 import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateReferralGroup, loadOrCreateUserData, loadOrCreateUserDepositData } from "./entity-operations"
 import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
-import { calculatePoolEarnedPoints, harvestPointsForGroupMlrtPool, harvestPointsForUserFromMlrtPool } from "./common"
+import { calculatePoolEarnedPoints, getExchangeRateToNative, harvestPointsForGroupMlrtPool, harvestPointsForUserFromMlrtPool, updateGroupBoostAndTVL } from "./common"
 
 const MST_WST_ETH_LP = Address.fromHexString("0xC040041088B008EAC1bf5FB886eAc8c1e244B60F")
 const MSW_SW_ETH_LP = Address.fromHexString("0x2022d9AF896eCF0F1f5B48cdDaB9e74b5aAbCf00")
@@ -14,11 +14,11 @@ const MSW_SW_ETH_LP = Address.fromHexString("0x2022d9AF896eCF0F1f5B48cdDaB9e74b5
 export function handleTransfer(event: TransferEvent): void {
     // handle depopsit (not pre-deposit)
     if (event.params.from.equals(ADDRESS_ZERO) && event.params.to.notEqual(EIGENPIE_PREDEPLOST_HELPER)) {
-        depopsitHandler(event, false)
+        depositHandler(event, false)
     }
     // handle pre-depopsit
     else if (event.params.from.equals(ADDRESS_ZERO) &&event.params.to.equals(EIGENPIE_PREDEPLOST_HELPER)) {
-        depopsitHandler(event, true)
+        depositHandler(event, true)
     }
     // redeem
 
@@ -50,20 +50,13 @@ export function handleTransfer(event: TransferEvent): void {
 
 /** Internal Functions for transactions */
 
-function depopsitHandler(event: TransferEvent, isPreDeposit: boolean): void {
-    let userData = loadOrCreateUserData(event.params.to)
-    let groupData = loadOrCreateReferralGroup(userData.referralGroup)
-    let mlrt = MLRT.bind(event.address)
-    let try_exchangeRateToNative = mlrt.try_exchangeRateToNative()
-    let exchangeRateToNative = (try_exchangeRateToNative.reverted) ? ETHER_ONE : try_exchangeRateToNative.value
+function depositHandler(event: TransferEvent, isPreDeposit: boolean): void {
+    const userData = loadOrCreateUserData(event.params.to);
+    const groupData = loadOrCreateReferralGroup(userData.referralGroup);
 
-    // Update group mLRT pool points variables to be up-to-date
+    // Harvest group mLRT pool points variables to be up-to-date
     let groupMlrtPool = loadOrCreateGroupMlrtPoolStatus(groupData!.id, event.address)
-    harvestPointsForGroupMlrtPool(groupMlrtPool, groupData, event.block.timestamp, exchangeRateToNative);
-
-    // Harvest points for user from the mLRT pool
-    let userMlrtPoolDepositData = loadOrCreateUserDepositData(userData.id, mlrt.underlyingAsset() as Bytes, groupMlrtPool.mlrt);
-    harvestPointsForUserFromMlrtPool(userMlrtPoolDepositData, userData, groupData);
+    harvestPointsForGroupMlrtPool(groupMlrtPool, groupData, event.block.timestamp, getExchangeRateToNative(event.address));
 
     // Update group mLrt pool totalAmount, totalUnmintedMlrt, totalTvl
     if (isPreDeposit) {
@@ -71,12 +64,16 @@ function depopsitHandler(event: TransferEvent, isPreDeposit: boolean): void {
     } else {
         groupMlrtPool.totalAmount = groupMlrtPool.totalAmount.plus(event.params.value)
     }
-    // update groupBoost
-    let newGroupBoost = calEigenpiePointGroupBoost(groupData!.mlrtPoolStatus.load())
-    groupData!.groupBoost = newGroupBoost[0]
-    groupData!.groupTVL = newGroupBoost[1]
-    groupData.save()
+    groupMlrtPool.save()
+
+    // Harvest points for user from the mLRT pool
+    let userMlrtPoolDepositData = loadOrCreateUserDepositData(userData.id, MLRT.bind(event.address).underlyingAsset() as Bytes, groupMlrtPool.mlrt);
+    harvestPointsForUserFromMlrtPool(userMlrtPoolDepositData, userData, groupData);
+
+    // update group boost and tvl
+    updateGroupBoostAndTVL(groupData);
 }
+
 
 function exchangeHandler(event: TransferEvent, isBuy: boolean): void {
     let userData = loadOrCreateUserData(event.params.to)

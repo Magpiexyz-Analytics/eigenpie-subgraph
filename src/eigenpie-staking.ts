@@ -6,7 +6,7 @@ import { ADDRESS_ZERO, BIGINT_ZERO, EIGENPIE_POINT_PER_SEC, EIGEN_LAYER_POINT_PE
 import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateReferralGroup, loadOrCreateUserData, loadOrCreateUserDepositData, loadReferralStatus } from "./entity-operations"
 import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
 import { log } from '@graphprotocol/graph-ts'
-import { calculatePoolEarnedPoints, harvestPointsForGroupMlrtPool, harvestPointsForUserFromMlrtPool } from "./common"
+import { calculatePoolEarnedPoints, getExchangeRateToNative, harvestPointsForGroupMlrtPool, harvestPointsForUserFromMlrtPool, updateGroupBoostAndTVL } from "./common"
 
 export function handleAssetDepositV1(event: AssetDepositEventV1): void {
     assetDepositHandler(
@@ -107,12 +107,9 @@ function mergeMlrtPoolsFromUserToReferrerGroup(userGroup: ReferralGroup, referre
 }
 
 function mergeSingleMlrtPool(userGroupMlrtPool: GroupMlrtPoolStatus, referrerGroup: ReferralGroup, blockTimestamp: BigInt): void {
-    let mlrt = MLRT.bind(userGroupMlrtPool.mlrt);
-    let try_exchangeRateToNative = mlrt.try_exchangeRateToNative()
-    let exchangeRateToNative = (try_exchangeRateToNative.reverted) ? ETHER_ONE : try_exchangeRateToNative.value
     let referrerGroupMlrtPool = loadOrCreateGroupMlrtPoolStatus(referrerGroup.id, userGroupMlrtPool.mlrt);
     // Update referrer group mLRT pool points variables to be up-to-date
-    harvestPointsForGroupMlrtPool(referrerGroupMlrtPool, referrerGroup, blockTimestamp, exchangeRateToNative);
+    harvestPointsForGroupMlrtPool(referrerGroupMlrtPool, referrerGroup, blockTimestamp, getExchangeRateToNative(userGroupMlrtPool.mlrt));
 
     // Update referrer group's mLrt pool with user group's mLrt pool data
     referrerGroupMlrtPool.totalAmount = referrerGroupMlrtPool.totalAmount.plus(userGroupMlrtPool.totalAmount);
@@ -123,11 +120,8 @@ function mergeSingleMlrtPool(userGroupMlrtPool: GroupMlrtPoolStatus, referrerGro
 }
 
 function finalizeGroupMergeAndCleanup(userGroup: ReferralGroup, referrerGroup: ReferralGroup): void {
-    // Assuming calEigenpiePointGroupBoost returns an array with the new boost and TVL
-    let res = calEigenpiePointGroupBoost(referrerGroup.mlrtPoolStatus.load());
-    referrerGroup.groupBoost = res[0];
-    referrerGroup.groupTVL = res[1];
-    referrerGroup.save();
+    // update group boost and tvl
+    updateGroupBoostAndTVL(referrerGroup);
 
     // Cleanup the user group
     store.remove("ReferralGroup", userGroup.id.toHexString());

@@ -1,7 +1,7 @@
 import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts"
 import { BIGINT_ZERO, EIGENPIE_POINT_PER_SEC, EIGEN_LAYER_POINT_PER_SEC, EIGEN_POINT_LAUNCH_TIME, ETHER_ONE } from "./constants";
 import { GroupMlrtPoolStatus, ReferralGroup, UserData, UserPoolDepositData } from "../generated/schema";
-import { globalBoost } from "./boost-module";
+import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module";
 import { MLRT } from "../generated/templates/MLRT/MLRT"
 import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateUserDepositData } from "./entity-operations";
 
@@ -69,4 +69,17 @@ function harvestEigenpiePointsForUserFromMlrtPool(depositData: UserPoolDepositDa
     const accPointsEarned = totalMlrt.times(poolStatus.accEigenpiePointPerShare).div(ETHER_ONE);
     depositData.eigenpiePoints = depositData.eigenpiePoints.plus(accPointsEarned.minus(depositData.eigenpiePointsDebt));
     depositData.eigenpiePointsDebt = accPointsEarned;
+}
+
+export function getExchangeRateToNative(mlrtAddress: Address): BigInt {
+    const mlrtContract = MLRT.bind(mlrtAddress);
+    const tryExchangeRateToNative = mlrtContract.try_exchangeRateToNative();
+    return tryExchangeRateToNative.reverted ? ETHER_ONE : tryExchangeRateToNative.value;
+}
+
+export function updateGroupBoostAndTVL(groupData: ReferralGroup): void {
+    const result = calEigenpiePointGroupBoost(groupData.mlrtPoolStatus.load());
+    groupData.groupBoost = result[0];
+    groupData.groupTVL = result[1];
+    groupData.save();
 }
