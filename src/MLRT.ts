@@ -12,45 +12,51 @@ const MSW_SW_ETH_LP = Address.fromHexString("0x2022d9AF896eCF0F1f5B48cdDaB9e74b5
 /** Event Handlers */
 
 export function handleTransfer(event: TransferEvent): void {
-    // handle depopsit (not pre-deposit)
-    if (event.params.from.equals(ADDRESS_ZERO) && event.params.to.notEqual(EIGENPIE_PREDEPLOST_HELPER)) {
-        depositHandler(event, false)
-    }
-    // handle pre-depopsit
-    else if (event.params.from.equals(ADDRESS_ZERO) &&event.params.to.equals(EIGENPIE_PREDEPLOST_HELPER)) {
-        depositHandler(event, true)
-    }
-    // redeem
-
-    // handle exchange
-
-    else if (
-        event.params.from.equals(MST_WST_ETH_LP) // buy mlrt from Curve mst-wstETH pool
-    ) {
-        exchangeHandler(event, true)
-    }
-    else if (
-        event.params.to.equals(MST_WST_ETH_LP) // sell mlrt from Curve mst-wstETH pool
-    ) {
-        exchangeHandler(event, false)
-    }
-    else if (
-        event.params.from.equals(MSW_SW_ETH_LP) // buy mlrt from Curve msw-swETH pool
-    ) {
-        exchangeHandler(event, true)
-    }
-    else if (
-        event.params.to.equals(MSW_SW_ETH_LP) // sell mlrt from Curve msw-swETH pool
-    ) {
-        exchangeHandler(event, false)
+    // Deposit handling (not pre-deposit)
+    if (isDeposit(event)) {
+        depositHandler(event);
+        return; // Early return to prevent further checks once a match is found
     }
 
-    // handle transfer
+    // Exchange handling
+    if (isExchange(event)) {
+        exchangeHandler(event);
+        return; // Early return after handling exchange
+    }
+
+    // Placeholder for redeem handling
+    // if (isRedeem(event)) {
+    //     redeemHandler(event);
+    //     return; // Early return after handling redeem
+    // }
+
+    // Placeholder for transfer handling
+    // if (isTransfer(event)) {
+    //     transferHandler(event);
+    //     return; // Early return after handling transfer
+    // }
+
+    // Add more conditions here as needed
+}
+
+function isDeposit(event: TransferEvent): boolean {
+    return event.params.from.equals(ADDRESS_ZERO);
+}
+
+function isPreDeposit(event: TransferEvent): boolean {
+    return event.params.to.equals(EIGENPIE_PREDEPLOST_HELPER);
+}
+
+function isExchange(event: TransferEvent): boolean {
+    return event.params.from.equals(MST_WST_ETH_LP) || 
+           event.params.to.equals(MST_WST_ETH_LP) || 
+           event.params.from.equals(MSW_SW_ETH_LP) || 
+           event.params.to.equals(MSW_SW_ETH_LP);
 }
 
 /** Internal Functions for transactions */
 
-function depositHandler(event: TransferEvent, isPreDeposit: boolean): void {
+function depositHandler(event: TransferEvent): void {
     const userData = loadOrCreateUserData(event.params.to);
     const groupData = loadOrCreateReferralGroup(userData.referralGroup);
 
@@ -59,7 +65,7 @@ function depositHandler(event: TransferEvent, isPreDeposit: boolean): void {
     harvestPointsForGroupMlrtPool(groupMlrtPool, groupData, event.block.timestamp, getExchangeRateToNative(event.address));
 
     // Update group mLrt pool totalAmount, totalUnmintedMlrt, totalTvl
-    if (isPreDeposit) {
+    if (isPreDeposit(event)) {
         groupMlrtPool.totalUnmintedMlrt = groupMlrtPool.totalUnmintedMlrt.plus(event.params.value)
     } else {
         groupMlrtPool.totalAmount = groupMlrtPool.totalAmount.plus(event.params.value)
@@ -75,7 +81,7 @@ function depositHandler(event: TransferEvent, isPreDeposit: boolean): void {
 }
 
 
-function exchangeHandler(event: TransferEvent, isBuy: boolean): void {
+function exchangeHandler(event: TransferEvent): void {
     let userData = loadOrCreateUserData(event.params.to)
     let groupData = ReferralGroup.load(userData.referralGroup)
     let mlrt = MLRT.bind(event.address)
@@ -87,7 +93,7 @@ function exchangeHandler(event: TransferEvent, isBuy: boolean): void {
     let timeDiff = mlrtPoolStatus.lastUpdateTimestamp.minus(event.block.timestamp)
     let previousTotalTvl = mlrtPoolStatus.totalAmount.times(exchangeRateToNative).div(ETHER_ONE)
     let earnedEigenLayerPoint = previousTotalTvl.times(timeDiff).times(EIGEN_LAYER_POINT_PER_SEC).div(ETHER_ONE)
-    if (isBuy)
+    if (isExchangeBuy(event))
         mlrtPoolStatus.totalAmount = mlrtPoolStatus.totalAmount.plus(event.params.value)
     else
         mlrtPoolStatus.totalAmount = mlrtPoolStatus.totalAmount.minus(event.params.value)
@@ -112,7 +118,7 @@ function exchangeHandler(event: TransferEvent, isBuy: boolean): void {
 
     // update eigenlayer points for the user
     let userPoolDepositData = loadOrCreateUserDepositData(event.params.to, mlrt.underlyingAsset(), event.address)
-    if (isBuy)
+    if (isExchangeBuy(event))
         userPoolDepositData.mlrtAmount = userPoolDepositData.mlrtAmount.plus(event.params.value)
     else
         userPoolDepositData.mlrtAmount = userPoolDepositData.mlrtAmount.minus(event.params.value)
@@ -129,4 +135,8 @@ function exchangeHandler(event: TransferEvent, isBuy: boolean): void {
     mlrtPoolStatus.lastUpdateTimestamp = event.block.timestamp
     mlrtPoolStatus.save()
     userPoolDepositData.save()
+}
+
+function isExchangeBuy(event: TransferEvent): boolean {
+    return event.params.from.equals(MST_WST_ETH_LP) || event.params.from.equals(MSW_SW_ETH_LP);
 }
