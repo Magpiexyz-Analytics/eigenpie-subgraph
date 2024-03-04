@@ -1,9 +1,9 @@
 import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts"
 import { BIGINT_ZERO, EIGENPIE_POINT_PER_SEC, EIGEN_LAYER_POINT_PER_SEC, EIGEN_POINT_LAUNCH_TIME, ETHER_ONE } from "./constants";
-import { GroupMlrtPoolStatus, ReferralGroup, UserData, UserPoolDepositData } from "../generated/schema";
+import { GroupMlrtPoolStatus, GroupPartnerLpStatus, ReferralGroup, UserData, UserPartnerLpDepositData, UserPoolDepositData } from "../generated/schema";
 import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module";
 import { MLRT } from "../generated/templates/MLRT/MLRT"
-import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateUserDepositData } from "./entity-operations";
+import { loadOrCreateGroupMlrtPoolStatus, loadOrCreateGroupPartnerLpStatus, loadOrCreateUserDepositData, loadOrCreateUserPartnerLpDepositData } from "./entity-operations";
 
 export function harvestPointsForGroupMlrtPool(pool: GroupMlrtPoolStatus, group: ReferralGroup, blockTimestamp: BigInt, mlrtExchangeRateToETH: BigInt): void {
     harvestEigenLayerPointsForGroupMlrtPoolIfNeeded(pool, blockTimestamp, mlrtExchangeRateToETH);
@@ -82,4 +82,55 @@ export function updateGroupBoostAndTVL(groupData: ReferralGroup): void {
     groupData.groupBoost = result[0];
     groupData.groupTVL = result[1];
     groupData.save();
+}
+
+export function harvestPointsForGroupPartnerLpPool(LpTvlEth: BigInt, mlrtBalanceForPool: BigInt, pool: GroupPartnerLpStatus, group: ReferralGroup, blockTimestamp: BigInt): void {
+    harvestEigenLayerPointsForGroupPartnerLpPoolIfNeeded(mlrtBalanceForPool, pool, blockTimestamp);
+    harvesetEigenpiePointsForGroupPartnerLpPool(LpTvlEth, pool, group, blockTimestamp);
+    pool.lastUpdateTimestamp = blockTimestamp;
+    pool.save();
+}
+
+// 
+function harvestEigenLayerPointsForGroupPartnerLpPoolIfNeeded(mlrtTvlEth: BigInt, pool: GroupPartnerLpStatus, blockTimestamp: BigInt): void {
+    if (blockTimestamp.ge(EIGEN_POINT_LAUNCH_TIME)) {
+        const effectiveLastUpdateTimestamp = getEffectiveLastUpdateTimestamp(pool.lastUpdateTimestamp);
+        const timeDiff = blockTimestamp.minus(effectiveLastUpdateTimestamp);
+        const earnedPoints = calculatePoolEarnedPoints(mlrtTvlEth, timeDiff, EIGEN_LAYER_POINT_PER_SEC);
+
+        pool.accumulateEigenLayerPoints = pool.accumulateEigenLayerPoints.plus(earnedPoints);
+        pool.accEigenLayerPointPerShare = calculatePointsPerShare(pool.accumulateEigenLayerPoints, pool.totalAmount);
+    }
+}
+
+function harvesetEigenpiePointsForGroupPartnerLpPool(LpTvlEth: BigInt, pool: GroupPartnerLpStatus, group: ReferralGroup, blockTimestamp: BigInt): void {
+    const timeDiff = blockTimestamp.minus(pool.lastUpdateTimestamp);
+    const boostMultiplier = EIGENPIE_POINT_PER_SEC.times(group.groupBoost).times(globalBoost(blockTimestamp));
+    const earnedPoints = calculatePoolEarnedPoints(LpTvlEth, timeDiff, boostMultiplier);
+
+    pool.accumulateEigenpiePoints = pool.accumulateEigenpiePoints.plus(earnedPoints);
+    pool.accEigenpiePointPerShare = calculatePointsPerShare(pool.accumulateEigenpiePoints, pool.totalAmount);
+}
+
+// loadOrCreateUserPartnerLpDepositData(members[i].id, event.address, "Curve")
+export function harvestPointsForUserFromPartnerLpPool(lpAddress: Address, prtotcol: string, user: UserData, group: ReferralGroup): void {
+    const mlrtPoolStatus = loadOrCreateGroupPartnerLpStatus(group.id, lpAddress, prtotcol);
+    const userPoolDepositData = loadOrCreateUserPartnerLpDepositData(user.id, lpAddress, prtotcol);
+
+    harvestEigenLayerPointsForUserFromPartnerLpPool(userPoolDepositData, mlrtPoolStatus);
+    harvestEigenpiePointsForUserFromPartnerLpPool(userPoolDepositData, mlrtPoolStatus);
+
+    userPoolDepositData.save();
+}
+
+function harvestEigenLayerPointsForUserFromPartnerLpPool(depositData: UserPartnerLpDepositData, poolStatus: GroupPartnerLpStatus): void {
+    const accPointsEarned = depositData.lpAmount.times(poolStatus.accEigenLayerPointPerShare).div(ETHER_ONE);
+    depositData.eigenLayerPoints = depositData.eigenLayerPoints.plus(accPointsEarned.minus(depositData.eigenLayerPointsDebt));
+    depositData.eigenLayerPointsDebt = accPointsEarned;
+}
+
+function harvestEigenpiePointsForUserFromPartnerLpPool(depositData: UserPartnerLpDepositData, poolStatus: GroupPartnerLpStatus): void {
+    const accPointsEarned = depositData.lpAmount.times(poolStatus.accEigenpiePointPerShare).div(ETHER_ONE);
+    depositData.eigenpiePoints = depositData.eigenpiePoints.plus(accPointsEarned.minus(depositData.eigenpiePointsDebt));
+    depositData.eigenpiePointsDebt = accPointsEarned;
 }

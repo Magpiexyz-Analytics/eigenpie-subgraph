@@ -6,6 +6,7 @@ import { loadOrCreateGroupPartnerLpStatus, loadOrCreateReferralGroup, loadOrCrea
 import { BigInt } from "@graphprotocol/graph-ts"
 import { PartnerLpStatus } from "../generated/schema"
 import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
+import { getExchangeRateToNative, harvestPointsForGroupPartnerLpPool, harvestPointsForUserFromPartnerLpPool } from "./common"
 
 /** Event Handlers */
 
@@ -21,41 +22,20 @@ export function handleTokenExchange(event: TokenExchangeEvent): void {
         let groupData = loadOrCreateReferralGroup(holdingGroups[i])
         let groupCurveLpStatus = loadOrCreateGroupPartnerLpStatus(holdingGroups[i], event.address, "Curve")
 
-        let mlrt = MLRT.bind(curveLp.coins(BIGINT_ZERO))
-        let try_exchangeRateToNative = mlrt.try_exchangeRateToNative()
-        let exchangeRateToNative = (try_exchangeRateToNative.reverted) ? ETHER_ONE : try_exchangeRateToNative.value
+        let exchangeRateToNative = getExchangeRateToNative(curveLp.coins(BIGINT_ZERO))
         let token0AmountETH = token0AmountInPool.times(exchangeRateToNative).div(ETHER_ONE)
 
         let curveAsset = CurveAsset.bind(curveLp.coins(BIGINT_ONE))
         let token1AmountETH = (curveAsset.symbol() == "wstETH") ? token1AmountInPool.times(curveAsset.tokensPerStEth()).div(ETHER_ONE) : token1AmountInPool
 
-        // for eigenlayer points
-        let timeDiff = groupCurveLpStatus.lastUpdateTimestamp.minus(event.block.timestamp)
-        let earnedEigenLayerPoint = token0AmountETH.times(timeDiff).times(EIGEN_LAYER_POINT_PER_SEC).div(ETHER_ONE)
-        groupCurveLpStatus.totalAmount = groupCurveLpStatus.totalAmount.plus(event.params.tokens_sold)
-        groupCurveLpStatus.totalAmount = groupCurveLpStatus.totalAmount.minus(event.params.tokens_bought)
-        groupCurveLpStatus.accumulateEigenLayerPoints = groupCurveLpStatus.accumulateEigenLayerPoints.plus(earnedEigenLayerPoint)
-        groupCurveLpStatus.accEigenLayerPointPerShare = (groupCurveLpStatus.totalAmount.gt(BIGINT_ZERO)) ? groupCurveLpStatus.accumulateEigenLayerPoints.times(ETHER_ONE).div(groupCurveLpStatus.totalAmount) : BIGINT_ZERO
-
-        // for eigenpie points
-        let curveLpTvlEth = token0AmountETH.plus(token1AmountETH)
-        let earnedEigenpiePoint = curveLpTvlEth.times(timeDiff).times(EIGENPIE_POINT_PER_SEC).div(ETHER_ONE)
-        let boostedEigenpiePoint = earnedEigenpiePoint.times(groupData.groupBoost).times(globalBoost(event.block.timestamp)).div(DENOMINATOR.pow(2))
-        groupCurveLpStatus.accumulateEigenpiePoints = groupCurveLpStatus.accumulateEigenpiePoints.plus(boostedEigenpiePoint)
-        groupCurveLpStatus.accEigenpiePointPerShare = (groupCurveLpStatus.totalAmount.gt(BIGINT_ZERO)) ? groupCurveLpStatus.accumulateEigenpiePoints.times(ETHER_ONE).div(groupCurveLpStatus.totalAmount) : BIGINT_ZERO
-        groupCurveLpStatus.save()
+        harvestPointsForGroupPartnerLpPool(token0AmountETH.plus(token1AmountETH), token0AmountETH, groupCurveLpStatus, groupData, event.block.timestamp)
 
         let members = groupData.members.load()
         for (let j = 0; j < members.length; j++) {
             let holdingLps = members[i].curvePools.load()
             for (let k = 0; k < holdingLps.length; k++) {
                 if (holdingLps[k].lpAddress.notEqual(event.address)) continue
-                let userCurceLpDepositData = loadOrCreateUserPartnerLpDepositData(members[i].id, event.address, "Curve")
-                userCurceLpDepositData.eigenLayerPoints = userCurceLpDepositData.lpAmount.times(groupCurveLpStatus.accEigenpiePointPerShare).div(ETHER_ONE)
-                    .plus(userCurceLpDepositData.eigenLayerPoints)
-                userCurceLpDepositData.eigenpiePoints = userCurceLpDepositData.lpAmount.times(groupCurveLpStatus.accEigenpiePointPerShare).div(ETHER_ONE)
-                    .plus(userCurceLpDepositData.eigenpiePoints)
-                userCurceLpDepositData.save()
+                harvestPointsForUserFromPartnerLpPool(event.address, "Curve", members[i], groupData)
             }
         }
     }
@@ -90,5 +70,5 @@ function updateLiquidityProvidersPoint(event: TransferEvent): void {
         curveLpStatus.holdingGroups.push(userData.referralGroup)
     }
 
-    
+
 }
