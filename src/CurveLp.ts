@@ -29,15 +29,6 @@ export function handleTokenExchange(event: TokenExchangeEvent): void {
         let token1AmountETH = (curveAsset.symbol() == "wstETH") ? token1AmountInPool.times(curveAsset.tokensPerStEth()).div(ETHER_ONE) : token1AmountInPool
 
         harvestPointsForGroupPartnerLpPool(token0AmountETH.plus(token1AmountETH), token0AmountETH, groupCurveLpStatus, groupData, event.block.timestamp)
-
-        let members = groupData.members.load()
-        for (let j = 0; j < members.length; j++) {
-            let holdingLps = members[i].curvePools.load()
-            for (let k = 0; k < holdingLps.length; k++) {
-                if (holdingLps[k].lpAddress.notEqual(event.address)) continue
-                harvestPointsForUserFromPartnerLpPool(event.address, "Curve", members[i], groupData)
-            }
-        }
     }
 }
 

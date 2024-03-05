@@ -53,7 +53,7 @@ function depositHandler(event: TransferEvent): void {
     const groupData = loadOrCreateReferralGroup(userData.referralGroup);
 
     // Harvest group mLRT pool points variables to be up-to-date
-    let groupMlrtPool = loadOrCreateGroupMlrtPoolStatus(groupData!.id, event.address)
+    let groupMlrtPool = loadOrCreateGroupMlrtPoolStatus(groupData.id, event.address)
     harvestPointsForGroupMlrtPool(groupMlrtPool, groupData, event.block.timestamp, getExchangeRateToNative(event.address));
 
     // Update group mLrt pool totalAmount, totalUnmintedMlrt, totalTvl

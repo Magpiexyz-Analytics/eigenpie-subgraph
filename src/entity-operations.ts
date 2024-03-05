@@ -1,6 +1,5 @@
-import { Address, BigInt, Bytes, crypto } from "@graphprotocol/graph-ts"
-import { DENOMINATOR, ADDRESS_ZERO_BYTES, BIGINT_ZERO, ETHER_ONE, EIGEN_POINT_LAUNCH_TIME, BYTES_ZERO } from "./constants"
-import { MLRT } from "../generated/templates/MLRT/MLRT"
+import { Bytes } from "@graphprotocol/graph-ts"
+import { DENOMINATOR, ADDRESS_ZERO_BYTES, BIGINT_ZERO, BYTES_ZERO } from "./constants"
 import { UserData, ReferralGroup, ReferralStatus, UserPoolDepositData, GroupMlrtPoolStatus, GroupPartnerLpStatus, UserPartnerLpDepositData } from "../generated/schema"
 
 export function loadOrCreateUserData(userAddress: Bytes, referrerAddr: Bytes = ADDRESS_ZERO_BYTES): UserData {

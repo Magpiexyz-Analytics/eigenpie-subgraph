@@ -11,5 +11,5 @@ export const ADDRESS_ZERO_BYTES = Bytes.fromHexString("0x00000000000000000000000
 export const BIGINT_ZERO = BigInt.fromI32(0)
 export const BIGINT_ONE = BigInt.fromI32(1)
 export const BYTES_ZERO = Bytes.fromI32(0)
-export const EIGEN_POINT_LAUNCH_TIME = BigInt.fromI32(1707163200)
+export const EIGEN_LAYER_LAUNCH_TIME = BigInt.fromI32(1707163200)
 export const EIGENPIE_PREDEPLOST_HELPER = Address.fromHexString("0xcc5460cf8f81caa790b87910364e67ddb50e242b")
