@@ -4,7 +4,7 @@ import { MLRT } from "../generated/templates/MLRT/MLRT"
 import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_ZERO, DENOMINATOR, EIGENPIE_POINT_PER_SEC, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE } from "./constants"
 import { loadOrCreateGroupPartnerLpStatus, loadOrCreateReferralGroup, loadOrCreateUserData, loadOrCreateUserPartnerLpDepositData } from "./entity-operations"
 import { BigInt, Bytes } from "@graphprotocol/graph-ts"
-import { PartnerLpStatus } from "../generated/schema"
+import { PartnerLpStatus, UserData } from "../generated/schema"
 import { calEigenpiePointGroupBoost, globalBoost } from "./boost-module"
 import { getExchangeRateToNative, harvestPointsForGroupPartnerLpPool, harvestPointsForUserFromPartnerLpPool } from "./common"
 
@@ -36,35 +36,44 @@ export function handleTransfer(event: TransferEvent): void {
     if (
         event.params.sender.equals(ADDRESS_ZERO) // add liquidity
     ) {
-        updateLiquidityProvidersPoint(event)
+        liquidityModifyHandler(event, true)
     }
     else if (
         event.params.receiver.equals(ADDRESS_ZERO) // remove liquidity
     ) {
-        updateLiquidityProvidersPoint(event)
+        liquidityModifyHandler(event, false)
     }
     else // lp transfer
-    { }
+    {
+        
+    }
 }
 
 /** Internal Functions for transactions */
 
-function updateLiquidityProvidersPoint(event: TransferEvent): void {
+function liquidityModifyHandler(event: TransferEvent, isAddLiquidity: boolean): void {
     let curveLpStatus = PartnerLpStatus.load(event.address)
     if (!curveLpStatus) {
         curveLpStatus = new PartnerLpStatus(event.address)
         curveLpStatus.holdingGroups = []
     }
 
+    let userCurveLpDepositData = loadOrCreateUserPartnerLpDepositData(event.params.receiver as Bytes, event.address, "Curve")
+    if (isAddLiquidity)
+        userCurveLpDepositData.lpAmount = userCurveLpDepositData.lpAmount.plus(event.params.value)
+    else
+        userCurveLpDepositData.lpAmount = userCurveLpDepositData.lpAmount.minus(event.params.value)
+    userCurveLpDepositData.save()
+
     addNewHoldingGroupIfNeeded(event.params.receiver as Bytes, curveLpStatus)
 
     for (let i = 0; i < curveLpStatus.holdingGroups.length; i++) {
         let group = loadOrCreateReferralGroup(curveLpStatus.holdingGroups[i])
-        let members = group.members.load()
+        // let members = group.members.load()
 
-        for (let j = 0; j < members.length; j++) {
-            harvestPointsForUserFromPartnerLpPool(event.address, "Curve", members[i], group)
-        }
+        // for (let j = 0; j < members.length; j++) {
+        //     harvestPointsForUserFromPartnerLpPool(event.address, "Curve", members[i], group)
+        // }
     }
 }
 
