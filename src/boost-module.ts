@@ -1,4 +1,4 @@
-import { BigInt, Address } from "@graphprotocol/graph-ts"
+import { BigInt, Address, log } from "@graphprotocol/graph-ts"
 import { GroupMlrtPoolStatus } from "../generated/schema"
 import { BIGINT_ZERO, DENOMINATOR, ETHER_ONE } from "./constants"
 import { MLRT } from "../generated/templates/MLRT/MLRT"
@@ -9,7 +9,7 @@ export function calEigenpiePointGroupBoost(mlrtPoolStatuses: GroupMlrtPoolStatus
 
     // Sum total TVL across all mlrtPoolStatuses
     for (let i = 0; i < mlrtPoolStatuses.length; i++) {
-        let mlrt = MLRT.bind(mlrtPoolStatuses[i].mlrt as Address);
+        let mlrt = MLRT.bind(Address.fromBytes(mlrtPoolStatuses[i].mlrt))
         let try_exchangeRateToNative = mlrt.try_exchangeRateToNative()
         let exchangeRateToNative = (try_exchangeRateToNative.reverted) ? ETHER_ONE : try_exchangeRateToNative.value
         totalTvl = totalTvl.plus((mlrtPoolStatuses[i].totalAmount.plus(mlrtPoolStatuses[i].totalUnmintedMlrt)).times(exchangeRateToNative).div(ETHER_ONE));
