@@ -103,7 +103,7 @@ dataSources:
           handler: handleCurveRemoveLiquidityOne
         - event: RemoveLiquidityImbalance(indexed address,uint256[],uint256[],uint256,uint256)
           handler: handleCurveRemoveLiquidityImbalance
-      file: ./src/eigenpieStaking.ts
+      file: ./src/masterEigenpie.ts
 templates:
   - name: MLRT
     kind: ethereum/contract
@@ -114,7 +114,7 @@ templates:
       kind: ethereum/events
       apiVersion: 0.0.7
       language: wasm/assemblyscript
-      file: ./src/MLRT.ts
+      file: ./src/masterEigenpie.ts
       entities:
         - MLRT
       abis:
