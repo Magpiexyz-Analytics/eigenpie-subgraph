@@ -21,7 +21,7 @@ export function handleCurveLpTransfer(event: CurveLpTransferEvent): void {
     
     // process for receiver
     if (receiverAddress.notEqual(ADDRESS_ZERO)) {
-        const receiverInfo = loadOrCreateGroupInfo(senderAddress);
+        const receiverInfo = loadOrCreateGroupInfo(receiverAddress);
         deposit(receiverInfo.group, lpToken, receiverAddress, transferShares, event.block.timestamp, false);
     }
     updateGlobalBoost(event.block.timestamp);
@@ -29,32 +29,18 @@ export function handleCurveLpTransfer(event: CurveLpTransferEvent): void {
 
 export function handleCurveTrading(event: CurveLpTokenExchangeEvent): void {
     const lpToken = toLowerCase(event.address);
-    log.debug("{}", ["1"]);
     updatePools(lpToken, event.block.timestamp);
-    log.debug("{}", ["2"]);
-    updateLpMlrtRatio(lpToken);
-    log.debug("{}", ["3"]);
+    updateCurveLpTvlAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
-    log.debug("{}", ["4"]);
 }
 
-function updateLpMlrtRatio(lpToken: Bytes): void {
+function updateCurveLpTvlAndMlrtRatio(lpToken: Bytes): void {
     const CurveLpContract = CurveLP.bind(Address.fromBytes(lpToken));
-    log.debug("{}", ["2.1"]);
     const mLrtToken = toLowerCase(CurveLpContract.coins(BIGINT_ZERO));
     const lstToken = toLowerCase(CurveLpContract.coins(BIGINT_ONE));
-    log.debug("{}", ["2.2"]);
     let balances = CurveLpContract.get_balances();
     let mLRTTvl = mul(balances[0], loadOrCreateLpInfo(mLrtToken).priceToETH)
-    log.debug("{}", ["2.3"]);
-    LST_PRICE_MAP.keys().forEach((key: string): void => {
-        let value = LST_PRICE_MAP.get(key);
-        log.info('Key: {} - Value: {}', [key, value.toString()]);
-      });
-    log.debug("lstToken.toHexString(): {}", [lstToken.toHexString()]);
-    log.debug("LST_PRICE_MAP.has(lstToken.toHexString()): {}", [LST_PRICE_MAP.has(lstToken.toHexString()).toString()]);
     let lstTvl = mul(balances[1], LST_PRICE_MAP.get(lstToken.toHexString()));
-    log.debug("{}", ["2.4"]);
     const lpInfo = loadOrCreateLpInfo(lpToken);
     lpInfo.mLrtRatio = div(mLRTTvl, mLRTTvl.plus(lstTvl));
     lpInfo.save();
@@ -63,28 +49,28 @@ function updateLpMlrtRatio(lpToken: Bytes): void {
 export function handleCurveAddLiquidity(event: CurveLpAddLiquidityEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateLpMlrtRatio(lpToken);
+    updateCurveLpTvlAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
 export function handleCurveRemoveLiquidity(event: CurveLpRemoveLiquidityEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateLpMlrtRatio(lpToken);
+    updateCurveLpTvlAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
 export function handleCurveRemoveLiquidityOne(event: CurveLpRemoveLiquidityOneEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateLpMlrtRatio(lpToken);
+    updateCurveLpTvlAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
 export function handleCurveRemoveLiquidityImbalance(event: CurveLpRemoveLiquidityImbalanceEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateLpMlrtRatio(lpToken);
+    updateCurveLpTvlAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -119,6 +105,8 @@ export function handleEigenpieStakingAssetDepositV1(event: AssetDepositEventV1):
         depositor.referrer = referrer.id;
         referrer.referralCount = referrer.referralCount.plus(ETHER_ONE);
         mergeGroups(depositor.group, referrer.group, event.block.timestamp, false);
+        depositor.save();
+        referrer.save();
     }
     updateGlobalBoost(event.block.timestamp);
 }
@@ -135,6 +123,8 @@ export function handleEigenpieStakingAssetDepositV2(event: AssetDepositEventV2):
         depositor.referrer = referrer.id;
         referrer.referralCount = referrer.referralCount.plus(ETHER_ONE);
         mergeGroups(depositor.group, referrer.group, event.block.timestamp, isPreDepsoit);
+        depositor.save();
+        referrer.save();
     }
     if (isPreDepsoit) {
         deposit(depositor.group, lpToken, depositorAddress, shares, event.block.timestamp, true);
@@ -164,11 +154,12 @@ function mergeGroups(depositorGroupAddress: Bytes, referrerGroupAddress: Bytes, 
     for (let i = 0; i < members.length; i++) {
         let member = members[i];
         let userBalances = member.userBalances.load();
-        for (let j = 0; j < userBalances.length; i++) {
+        for (let j = 0; j < userBalances.length; j++) {
             let userBalance = userBalances[j];
             withdraw(depositorGroup.group, userBalance.lpToken, userBalance.user, userBalance.shares, blockTimestamp, isPreDepsoit);
             deposit(referrerGroupAddress, userBalance.lpToken, userBalance.user, userBalance.shares, blockTimestamp, isPreDepsoit);
             member.group = referrerGroupAddress;
+            member.save();
             store.remove("UserBalanceInfo", userBalance.id.toHexString());
         }
     }
@@ -189,7 +180,7 @@ function updatePool(group: Bytes, lpToken: Bytes, blockTimestamp: BigInt): void 
     }
     let lpInfo = loadOrCreateLpInfo(pool.lpToken);
     // update eigenlayer points for pool
-    if (blockTimestamp.gt(EIGEN_LAYER_LAUNCH_TIME)) {
+    if (blockTimestamp.gt(EIGEN_LAYER_LAUNCH_TIME) && !pool.totalShares.equals(BIGINT_ZERO)) {
         let timeSinceLastRewardUpdate = blockTimestamp.minus(pool.lastRewardTimestamp.le(EIGEN_LAYER_LAUNCH_TIME) ? EIGEN_LAYER_LAUNCH_TIME : pool.lastRewardTimestamp);
         // eigenLayerPointsReward = timeSinceLastRewardUpdate * lpInfo.eigenLayerPointsPerSec * lpInfo.priceToETH * lpInfo.totalShares * lpInfo.mLrtRatio
         let eigenLayerPointsReward = mul(mul(mul(mul(timeSinceLastRewardUpdate, lpInfo.eigenLayerPointsPerSec), lpInfo.priceToETH), pool.totalShares), lpInfo.mLrtRatio); 
@@ -248,7 +239,7 @@ function withdraw(groupAddrss: Bytes, lpToken: Bytes, user: Bytes, shares: BigIn
     let pool = loadOrCreatePoolInfo(groupAddrss, lpToken);
     let userBalanceInfo = loadOrCreateUserBalanceInfo(groupAddrss, lpToken, user);
 
-    if ((!isPreDepsoit && userBalanceInfo.shares < shares) || (isPreDepsoit && userBalanceInfo.unclaimedShares < shares)) {
+    if ((!isPreDepsoit && userBalanceInfo.shares.lt(shares)) || (isPreDepsoit && userBalanceInfo.unclaimedShares.lt(shares))) {
         throw new Error("WithdrawAmountExceedsStaked");
     } 
 
@@ -444,20 +435,15 @@ function calEigenpiePointGroupBoost(groupTvl: BigInt): BigInt {
 
 function updateAllPools(blockTimestamp: BigInt): void {
     for (let i = 0; i < LPTOKEN_LIST.length; i++) {
-        let lpInfo = loadOrCreateLpInfo(Bytes.fromHexString(LPTOKEN_LIST[i]));
-        let pools = lpInfo.pools.load();
-        for (let j = 0; j < pools.length; j++) {
-            let pool = pools[j];
-            updatePool(pool.group, pool.lpToken, blockTimestamp);
-        }
+        updatePools(Bytes.fromHexString(LPTOKEN_LIST[i]), blockTimestamp);
     }
 }
 
 function updatePools(lpToken: Bytes, blockTimestamp: BigInt): void {
     let lpInfo = loadOrCreateLpInfo(lpToken);
     let pools = lpInfo.pools.load();
-    for (let j = 0; j < pools.length; j++) {
-        let pool = pools[j];
+    for (let i = 0; i < pools.length; i++) {
+        let pool = pools[i];
         updatePool(pool.group, pool.lpToken, blockTimestamp);
     }
 }
