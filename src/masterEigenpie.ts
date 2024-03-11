@@ -5,15 +5,37 @@ import { AssetDeposit as EigenpieStakingAssetDepositEventV1, AssetDeposit1 as Ei
 import { Deposit as ZircuitDepositEvent, Withdraw as ZircuitWithdrawEvent } from "../generated/ZtakingPool/ZtakingPool"
 import { ExchangeRateUpdate as PriceProviderExchangeRateUpdateEvent } from "../generated/PriceProvider/PriceProvider"
 import { GlobalInfo, GroupInfo, LpInfo, PoolInfo, UserBalanceInfo, UserInfo } from "../generated/schema";
+<<<<<<< HEAD
 import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH_WSTETH_CURVE_LP, MSTETH_WSTETH_PCS_LP, MSTETH_WSTETH_RANGE_LP, MSWETH_SWETH_CURVE_LP, STETH } from "./constants";
+=======
+import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, ETHER_THREE, ETHER_TWO, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH, MSTETH_WSTETH_CURVE_LP, MSTETH_ZIRCUIT_STAKING_LP, MSWETH, MSWETH_SWETH_CURVE_LP, MWBETH, ZIRCUIT_STAKING } from "./constants";
+>>>>>>> f5025bb (fix bug)
 
 // ################################# Zircuit ######################################## //
 export function handleZircuitDeposit(event: ZircuitDepositEvent): void {
-
+    const mlrtAddress = toLowerCase(event.params.token);
+    if (isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSWETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSTETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MWBETH)) {
+        const zircuitDepositContractAddress = toLowerCase(event.address);
+        const depositorAddress = toLowerCase(event.params.depositor);
+        const lpToken = zircuitDepositContractAddress.concat(mlrtAddress);
+        const depositorGroupAddress = loadOrCreateUserInfo(depositorAddress).group;
+        const shares = event.params.amount;
+        deposit(depositorGroupAddress, lpToken, depositorAddress, shares, event.block.timestamp, false);
+        updateGlobalBoost(event.block.timestamp);
+    }
 }
 
 export function handleZircuitWithdraw(event: ZircuitWithdrawEvent): void {
-
+    const mlrtAddress = toLowerCase(event.params.token);
+    if (isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSWETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSTETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MWBETH)) {
+        const zircuitDepositContractAddress = toLowerCase(event.address);
+        const withdrawerAddress = toLowerCase(event.params.withdrawer);
+        const lpToken = zircuitDepositContractAddress.concat(mlrtAddress);
+        const withdrawerGroupAddress = loadOrCreateUserInfo(withdrawerAddress).group;
+        const shares = event.params.amount;
+        withdraw(withdrawerGroupAddress, lpToken, withdrawerAddress, shares, event.block.timestamp, false);
+        updateGlobalBoost(event.block.timestamp);
+    }
 }
 
 // ################################# Curve LP ######################################## //
@@ -170,6 +192,12 @@ export function handlePriceProviderExchangeRateUpdateEvent(event: PriceProviderE
     let lpInfo = loadOrCreateLpInfo(lpToken);
     lpInfo.priceToETH = lpTokenPriceToEth;
     lpInfo.save();
+    if (isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH) || isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH) || isStringEqualIgnoreCase(lpToken.toHexString(), MWBETH)) {
+        let zircuitLpToken = Bytes.fromHexString(ZIRCUIT_STAKING.concat(lpToken.toHexString()));
+        let zircuitLpInfo = loadOrCreateLpInfo(zircuitLpToken);
+        zircuitLpInfo.priceToETH = lpTokenPriceToEth;
+        zircuitLpInfo.save();
+    }
 }
 
 // ################################# Helper Functions ######################################## //
@@ -433,10 +461,12 @@ function loadOrCreateGlobalInfo(): GlobalInfo {
 }
 
 function getEigenpiePointsPerSec(lpToken: Bytes): BigInt {
-    if (isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_WSTETH_CURVE_LP) || isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH_SWETH_CURVE_LP)) {
-        return BigInt.fromString("2000000000000000000").div(BigInt.fromI32(3600))
+    if (isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_WSTETH_CURVE_LP) || isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_ZIRCUIT_STAKING_LP)) {
+        return ETHER_TWO.div(BigInt.fromI32(3600))
+    } else if (isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH_SWETH_CURVE_LP)) {
+        return ETHER_THREE.div(BigInt.fromI32(3600))
     }
-    return BigInt.fromString("1000000000000000000").div(BigInt.fromI32(3600))
+    return ETHER_ONE.div(BigInt.fromI32(3600))
 }
 
 function calEigenpiePointGroupBoost(groupTvl: BigInt): BigInt {
