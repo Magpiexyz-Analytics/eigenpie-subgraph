@@ -15,13 +15,13 @@ export function handleCurveLpTransfer(event: CurveLpTransferEvent): void {
 
     // process for sender
     if (senderAddress.notEqual(ADDRESS_ZERO)) {
-        const senderInfo = loadOrCreateGroupInfo(senderAddress);
+        const senderInfo = loadOrCreateUserInfo(senderAddress);
         withdraw(senderInfo.group, lpToken, senderAddress, transferShares, event.block.timestamp, false);
     }
     
     // process for receiver
     if (receiverAddress.notEqual(ADDRESS_ZERO)) {
-        const receiverInfo = loadOrCreateGroupInfo(receiverAddress);
+        const receiverInfo = loadOrCreateUserInfo(receiverAddress);
         deposit(receiverInfo.group, lpToken, receiverAddress, transferShares, event.block.timestamp, false);
     }
     updateGlobalBoost(event.block.timestamp);
@@ -83,15 +83,25 @@ export function handleMlrtTransfer(event: MlrtTransferEvent): void {
     const senderAddress = toLowerCase(event.params.from);
     const receiverAddresss = toLowerCase(event.params.to);
 
+    if (isStringEqualIgnoreCase(senderAddress.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376") || isStringEqualIgnoreCase(receiverAddresss.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+        log.debug("DEBUG handleMlrtTransfer", []);
+    }
+
     // process for sender
     if (senderAddress.notEqual(ADDRESS_ZERO) && !isStringEqualIgnoreCase(senderAddress.toHexString(), EIGENPIE_PREDEPLOST_HELPER)) {
-        const senderInfo = loadOrCreateGroupInfo(senderAddress);
+        const senderInfo = loadOrCreateUserInfo(senderAddress);
+        if (isStringEqualIgnoreCase(senderAddress.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+            log.debug("DEBUG handleMlrtTransfer before withdraw: senderInfo.group {}", [senderInfo.group.toHexString()]);
+        }
         withdraw(senderInfo.group, lpToken, senderAddress, transferShares, event.block.timestamp, false);
     }
 
     // process for receiver
-    if (receiverAddresss.notEqual(ADDRESS_ZERO) &&  !isStringEqualIgnoreCase(receiverAddresss.toHexString(), EIGENPIE_PREDEPLOST_HELPER)) {
-        const receiverInfo = loadOrCreateGroupInfo(receiverAddresss);
+    if (receiverAddresss.notEqual(ADDRESS_ZERO) && !isStringEqualIgnoreCase(receiverAddresss.toHexString(), EIGENPIE_PREDEPLOST_HELPER)) {
+        const receiverInfo = loadOrCreateUserInfo(receiverAddresss);
+        if (isStringEqualIgnoreCase(receiverAddresss.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+            log.debug("DEBUG handleMlrtTransfer before deposit: receiverInfo.group {}", [receiverInfo.group.toHexString()]);
+        }
         deposit(receiverInfo.group, lpToken, receiverAddresss, transferShares, event.block.timestamp, false);
     }
     updateGlobalBoost(event.block.timestamp);
@@ -103,12 +113,15 @@ export function handleEigenpieStakingAssetDepositV1(event: AssetDepositEventV1):
     const depositorAddress = toLowerCase(event.params.depositor);
     const referrer = loadOrCreateUserInfo(referrerAddress);
     const depositor = loadOrCreateUserInfo(depositorAddress);
+    if (isStringEqualIgnoreCase(depositorAddress.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+        log.debug("DEBUG handleEigenpieStakingAssetDepositV1", []);
+    }
     if (isNewReferral(depositorAddress, referrerAddress)) {
-        depositor.referrer = referrer.id;
-        referrer.referralCount = referrer.referralCount.plus(ETHER_ONE);
+        
         mergeGroups(depositor.group, referrer.group, event.block.timestamp);
-        depositor.save();
-        referrer.save();
+        if (isStringEqualIgnoreCase(depositorAddress.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+            log.debug("DEBUG handleEigenpieStakingAssetDepositV1 after mergeGroups: depositor.group {}", [depositor.group.toHexString()])
+        }
     }
     updateGlobalBoost(event.block.timestamp);
 }
@@ -121,6 +134,9 @@ export function handleEigenpieStakingAssetDepositV2(event: AssetDepositEventV2):
     const shares = event.params.mintedAmount;
     const referrer = loadOrCreateUserInfo(referrerAddress);
     const depositor = loadOrCreateUserInfo(depositorAddress);
+    if (isStringEqualIgnoreCase(depositorAddress.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+        log.debug("DEBUG handleEigenpieStakingAssetDepositV2", []);
+    }
     if (isPreDepsoit) {
         deposit(depositor.group, lpToken, depositorAddress, shares, event.block.timestamp, true);
     } else {
@@ -129,9 +145,12 @@ export function handleEigenpieStakingAssetDepositV2(event: AssetDepositEventV2):
     if (isNewReferral(depositorAddress, referrerAddress)) {
         depositor.referrer = referrer.id;
         referrer.referralCount = referrer.referralCount.plus(ETHER_ONE);
-        mergeGroups(depositor.group, referrer.group, event.block.timestamp);
         depositor.save();
         referrer.save();
+        mergeGroups(depositor.group, referrer.group, event.block.timestamp);
+        if (isStringEqualIgnoreCase(depositorAddress.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+            log.debug("DEBUG handleEigenpieStakingAssetDepositV2 after mergeGroups: depositor.group {}", [depositor.group.toHexString()])
+        }
     }
     updateGlobalBoost(event.block.timestamp);
 }
@@ -156,14 +175,24 @@ function mergeGroups(depositorGroupAddress: Bytes, referrerGroupAddress: Bytes, 
     for (let i = 0; i < members.length; i++) {
         let member = members[i];
         let userBalances = member.userBalances.load();
+        member.group = referrerGroupAddress;
+        member.save();
         for (let j = 0; j < userBalances.length; j++) {
             let userBalance = userBalances[j];
+            if (isStringEqualIgnoreCase(userBalance.user.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+                log.debug("DEBUG mergeGroups: depositorGroup.group {}, referrerGroupAddress {}, userBalance.lpToken {}, userBalance.user {}, userBalance.shares {}, userBalance.unclaimedShares {}, blockTimestamp {}", 
+                [depositorGroup.group.toHexString(),
+                    referrerGroupAddress.toHexString(),
+                    userBalance.lpToken.toHexString(),
+                    userBalance.user.toHexString(),
+                    userBalance.shares.toString(),
+                    userBalance.unclaimedShares.toString(),
+                    blockTimestamp.toString()]);
+            }
             withdraw(depositorGroup.group, userBalance.lpToken, userBalance.user, userBalance.shares, blockTimestamp, false);
             deposit(referrerGroupAddress, userBalance.lpToken, userBalance.user, userBalance.shares, blockTimestamp, false);
             withdraw(depositorGroup.group, userBalance.lpToken, userBalance.user, userBalance.unclaimedShares, blockTimestamp, true);
             deposit(referrerGroupAddress, userBalance.lpToken, userBalance.user, userBalance.unclaimedShares, blockTimestamp, true);
-            member.group = referrerGroupAddress;
-            member.save();
             store.remove("UserBalanceInfo", userBalance.id.toHexString());
         }
     }
@@ -213,6 +242,18 @@ function deposit(groupAddress: Bytes, lpToken: Bytes, user: Bytes, shares: BigIn
         harvestPoints(groupAddress, lpToken, user);
     }
 
+    if (isStringEqualIgnoreCase(user.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+        log.debug("DEBUG deposit: groupAddrss {}, lpToken {}, user {}, shares {}, blockTimestamp {}, isPreDepsoit {}, userBalanceInfo.unclaimedShares {}, userBalanceInfo.shares {}", 
+        [groupAddress.toHexString(), 
+            lpToken.toHexString(), 
+            user.toHexString(), 
+            shares.toString(), 
+            blockTimestamp.toString(), 
+            isPreDepsoit.toString(), 
+            userBalanceInfo.unclaimedShares.toString(), 
+            userBalanceInfo.shares.toString()])
+    }
+
     // update user balance and pool balance
     if (isPreDepsoit) {
         userBalanceInfo.unclaimedShares = userBalanceInfo.unclaimedShares.plus(shares);
@@ -237,17 +278,31 @@ function deposit(groupAddress: Bytes, lpToken: Bytes, user: Bytes, shares: BigIn
     group.save()
 }
 
-function withdraw(groupAddrss: Bytes, lpToken: Bytes, user: Bytes, shares: BigInt, blockTimestamp: BigInt, isPreDepsoit: bool): void {
-    updatePool(groupAddrss, lpToken, blockTimestamp);
+function withdraw(groupAddress: Bytes, lpToken: Bytes, user: Bytes, shares: BigInt, blockTimestamp: BigInt, isPreDepsoit: bool): void {
+    updatePool(groupAddress, lpToken, blockTimestamp);
 
-    let pool = loadOrCreatePoolInfo(groupAddrss, lpToken);
-    let userBalanceInfo = loadOrCreateUserBalanceInfo(groupAddrss, lpToken, user);
+    let pool = loadOrCreatePoolInfo(groupAddress, lpToken);
+    let userBalanceInfo = loadOrCreateUserBalanceInfo(groupAddress, lpToken, user);
 
     if ((!isPreDepsoit && userBalanceInfo.shares.lt(shares)) || (isPreDepsoit && userBalanceInfo.unclaimedShares.lt(shares))) {
+        log.debug("DEBUG withdraw: isPreDepsoit {}, userBalanceInfo.shares {}, userBalanceInfo.unclaimedShares {}, shares {}, groupAddrss {}, lpToken {}, user {}", 
+        [isPreDepsoit.toString(), userBalanceInfo.shares.toString(), userBalanceInfo.unclaimedShares.toString(), shares.toString(), groupAddress.toHexString(), lpToken.toHexString(), user.toHexString()]);
         throw new Error("WithdrawAmountExceedsStaked");
     } 
 
-    harvestPoints(groupAddrss, lpToken, user);
+    harvestPoints(groupAddress, lpToken, user);
+
+    if (isStringEqualIgnoreCase(user.toHexString(), "0xc4b332a05646fe01400495f6ef4d413c9a100376")) {
+        log.debug("DEBUG withdraw: groupAddress {}, lpToken {}, user {}, shares {}, blockTimestamp {}, isPreDepsoit {}, userBalanceInfo.unclaimedShares {}, userBalanceInfo.shares {}", 
+        [groupAddress.toHexString(), 
+            lpToken.toHexString(), 
+            user.toHexString(), 
+            shares.toString(), 
+            blockTimestamp.toString(), 
+            isPreDepsoit.toString(), 
+            userBalanceInfo.unclaimedShares.toString(), 
+            userBalanceInfo.shares.toString()])
+    }
 
     // update user balance and pool balance
     if (isPreDepsoit) {
@@ -262,7 +317,7 @@ function withdraw(groupAddrss: Bytes, lpToken: Bytes, user: Bytes, shares: BigIn
     userBalanceInfo.eigenpiePointsDebt = mul(userBalanceInfo.shares.plus(userBalanceInfo.unclaimedShares), pool.accEigenpiePointPerShare);
 
     // update group boost
-    let group = loadOrCreateGroupInfo(groupAddrss);
+    let group = loadOrCreateGroupInfo(groupAddress);
     let withdrawTvl = mul(shares, loadOrCreateLpInfo(lpToken).priceToETH);
     group.totalTvl = group.totalTvl.minus(withdrawTvl);
     group.groupBoost = calEigenpiePointGroupBoost(group.totalTvl);
