@@ -100,6 +100,29 @@ dataSources:
         - event: Transfer(indexed address,indexed address,uint256)
           handler: handleMlrtTransfer
       file: ./src/masterEigenpie.ts
+  - kind: ethereum
+    name: ZtakingPool
+    network: mainnet
+    source:
+      abi: ZtakingPool
+      address: "0xF047ab4c75cebf0eB9ed34Ae2c186f3611aEAfa6"
+      startBlock: 19335788
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - ZtakingAssetDeposit
+        - ZtakingAssetWithdraw
+      abis:
+        - name: ZtakingPool
+          file: ./abis/ZtakingPool.json
+      eventHandlers:
+        - event: Deposit(indexed uint256,indexed address,indexed address,uint256)
+          handler: handleZircuitDeposit
+        - event: Withdraw(indexed uint256,indexed address,indexed address,uint256)
+          handler: handleZircuitWithdraw
+      file: ./src/masterEigenpie.ts
   # - kind: ethereum
   #   name: EigenpieConfig
   #   network: mainnet

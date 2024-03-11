@@ -1,10 +1,20 @@
 import { Address, BigInt, Bytes, log, store } from "@graphprotocol/graph-ts";
 import { Transfer as CurveLpTransferEvent, TokenExchange as CurveLpTokenExchangeEvent, AddLiquidity as CurveLpAddLiquidityEvent, RemoveLiquidity as CurveLpRemoveLiquidityEvent, RemoveLiquidityOne as CurveLpRemoveLiquidityOneEvent, RemoveLiquidityImbalance as CurveLpRemoveLiquidityImbalanceEvent, CurveLP } from "../generated/CurveLP-mst-wstETH/CurveLP"
 import { Transfer as MlrtTransferEvent } from "../generated/templates/MLRT/MLRT"
-import { AssetDeposit as AssetDepositEventV1, AssetDeposit1 as AssetDepositEventV2 } from "../generated/EigenpieStaking/EigenpieStaking"
+import { AssetDeposit as EigenpieStakingAssetDepositEventV1, AssetDeposit1 as EigenpieStakingAssetDepositEventV2 } from "../generated/EigenpieStaking/EigenpieStaking"
+import { Deposit as ZircuitDepositEvent, Withdraw as ZircuitWithdrawEvent } from "../generated/ZtakingPool/ZtakingPool"
 import { ExchangeRateUpdate as PriceProviderExchangeRateUpdateEvent } from "../generated/PriceProvider/PriceProvider"
 import { GlobalInfo, GroupInfo, LpInfo, PoolInfo, UserBalanceInfo, UserInfo } from "../generated/schema";
 import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH_WSTETH_CURVE_LP, MSTETH_WSTETH_PCS_LP, MSTETH_WSTETH_RANGE_LP, MSWETH_SWETH_CURVE_LP, STETH } from "./constants";
+
+// ################################# Zircuit ######################################## //
+export function handleZircuitDeposit(event: ZircuitDepositEvent): void {
+
+}
+
+export function handleZircuitWithdraw(event: ZircuitWithdrawEvent): void {
+
+}
 
 // ################################# Curve LP ######################################## //
 export function handleCurveLpTransfer(event: CurveLpTransferEvent): void {
@@ -104,7 +114,7 @@ export function handleMlrtTransfer(event: MlrtTransferEvent): void {
 }
 
 // ################################# EigenpieStaking ######################################## //
-export function handleEigenpieStakingAssetDepositV1(event: AssetDepositEventV1): void {
+export function handleEigenpieStakingAssetDepositV1(event: EigenpieStakingAssetDepositEventV1): void {
     const referrerAddress = toLowerCase(event.params.referral);
     const depositorAddress = toLowerCase(event.params.depositor);
     const referrerGroupAddress = loadOrCreateUserInfo(referrerAddress).group;
@@ -123,7 +133,7 @@ export function handleEigenpieStakingAssetDepositV1(event: AssetDepositEventV1):
     updateGlobalBoost(event.block.timestamp);
 }
 
-export function handleEigenpieStakingAssetDepositV2(event: AssetDepositEventV2): void {
+export function handleEigenpieStakingAssetDepositV2(event: EigenpieStakingAssetDepositEventV2): void {
     const referrerAddress = toLowerCase(event.params.referral);
     const depositorAddress = toLowerCase(event.params.depositor);
     const referrerGroupAddress = loadOrCreateUserInfo(referrerAddress).group;
