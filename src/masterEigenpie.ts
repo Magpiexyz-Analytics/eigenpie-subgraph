@@ -4,7 +4,7 @@ import { Transfer as MlrtTransferEvent } from "../generated/templates/MLRT/MLRT"
 import { AssetDeposit as AssetDepositEventV1, AssetDeposit1 as AssetDepositEventV2 } from "../generated/EigenpieStaking/EigenpieStaking"
 import { ExchangeRateUpdate as PriceProviderExchangeRateUpdateEvent } from "../generated/PriceProvider/PriceProvider"
 import { GlobalInfo, GroupInfo, LpInfo, PoolInfo, UserBalanceInfo, UserInfo } from "../generated/schema";
-import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, BYTES_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH_WSTETH_CURVE_LP, MSWETH_SWETH_CURVE_LP } from "./constants";
+import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH_WSTETH_CURVE_LP, MSWETH_SWETH_CURVE_LP } from "./constants";
 
 // ################################# Curve LP ######################################## //
 export function handleCurveLpTransfer(event: CurveLpTransferEvent): void {
@@ -30,47 +30,49 @@ export function handleCurveLpTransfer(event: CurveLpTransferEvent): void {
 export function handleCurveTrading(event: CurveLpTokenExchangeEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateCurveLpTvlAndMlrtRatio(lpToken);
+    updateCurveLpPriceToEthAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
-function updateCurveLpTvlAndMlrtRatio(lpToken: Bytes): void {
+function updateCurveLpPriceToEthAndMlrtRatio(lpToken: Bytes): void {
     const CurveLpContract = CurveLP.bind(Address.fromBytes(lpToken));
     const mLrtToken = toLowerCase(CurveLpContract.coins(BIGINT_ZERO));
     const lstToken = toLowerCase(CurveLpContract.coins(BIGINT_ONE));
+    const totalShares = CurveLpContract.totalSupply();
     let balances = CurveLpContract.get_balances();
     let mLRTTvl = mul(balances[0], loadOrCreateLpInfo(mLrtToken).priceToETH)
     let lstTvl = mul(balances[1], LST_PRICE_MAP.get(lstToken.toHexString()));
     const lpInfo = loadOrCreateLpInfo(lpToken);
     lpInfo.mLrtRatio = div(mLRTTvl, mLRTTvl.plus(lstTvl));
+    lpInfo.priceToETH = div(mLRTTvl.plus(lstTvl), totalShares);
     lpInfo.save();
 }
 
 export function handleCurveAddLiquidity(event: CurveLpAddLiquidityEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateCurveLpTvlAndMlrtRatio(lpToken);
+    updateCurveLpPriceToEthAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
 export function handleCurveRemoveLiquidity(event: CurveLpRemoveLiquidityEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateCurveLpTvlAndMlrtRatio(lpToken);
+    updateCurveLpPriceToEthAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
 export function handleCurveRemoveLiquidityOne(event: CurveLpRemoveLiquidityOneEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateCurveLpTvlAndMlrtRatio(lpToken);
+    updateCurveLpPriceToEthAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
 export function handleCurveRemoveLiquidityImbalance(event: CurveLpRemoveLiquidityImbalanceEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
-    updateCurveLpTvlAndMlrtRatio(lpToken);
+    updateCurveLpPriceToEthAndMlrtRatio(lpToken);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -104,7 +106,7 @@ export function handleEigenpieStakingAssetDepositV1(event: AssetDepositEventV1):
     if (isNewReferral(depositorAddress, referrerAddress)) {
         depositor.referrer = referrer.id;
         referrer.referralCount = referrer.referralCount.plus(ETHER_ONE);
-        mergeGroups(depositor.group, referrer.group, event.block.timestamp, false);
+        mergeGroups(depositor.group, referrer.group, event.block.timestamp);
         depositor.save();
         referrer.save();
     }
@@ -119,17 +121,17 @@ export function handleEigenpieStakingAssetDepositV2(event: AssetDepositEventV2):
     const shares = event.params.mintedAmount;
     const referrer = loadOrCreateUserInfo(referrerAddress);
     const depositor = loadOrCreateUserInfo(depositorAddress);
-    if (isNewReferral(depositorAddress, referrerAddress)) {
-        depositor.referrer = referrer.id;
-        referrer.referralCount = referrer.referralCount.plus(ETHER_ONE);
-        mergeGroups(depositor.group, referrer.group, event.block.timestamp, isPreDepsoit);
-        depositor.save();
-        referrer.save();
-    }
     if (isPreDepsoit) {
         deposit(depositor.group, lpToken, depositorAddress, shares, event.block.timestamp, true);
     } else {
         deposit(depositor.group, lpToken, depositorAddress, shares, event.block.timestamp, false);
+    }
+    if (isNewReferral(depositorAddress, referrerAddress)) {
+        depositor.referrer = referrer.id;
+        referrer.referralCount = referrer.referralCount.plus(ETHER_ONE);
+        mergeGroups(depositor.group, referrer.group, event.block.timestamp);
+        depositor.save();
+        referrer.save();
     }
     updateGlobalBoost(event.block.timestamp);
 }
@@ -148,7 +150,7 @@ export function handlePriceProviderExchangeRateUpdateEvent(event: PriceProviderE
 
 // ################################# Helper Functions ######################################## //
 
-function mergeGroups(depositorGroupAddress: Bytes, referrerGroupAddress: Bytes, blockTimestamp: BigInt, isPreDepsoit: bool): void {
+function mergeGroups(depositorGroupAddress: Bytes, referrerGroupAddress: Bytes, blockTimestamp: BigInt): void {
     const depositorGroup = loadOrCreateGroupInfo(depositorGroupAddress);
     const members = depositorGroup.members.load();
     for (let i = 0; i < members.length; i++) {
@@ -156,8 +158,10 @@ function mergeGroups(depositorGroupAddress: Bytes, referrerGroupAddress: Bytes, 
         let userBalances = member.userBalances.load();
         for (let j = 0; j < userBalances.length; j++) {
             let userBalance = userBalances[j];
-            withdraw(depositorGroup.group, userBalance.lpToken, userBalance.user, userBalance.shares, blockTimestamp, isPreDepsoit);
-            deposit(referrerGroupAddress, userBalance.lpToken, userBalance.user, userBalance.shares, blockTimestamp, isPreDepsoit);
+            withdraw(depositorGroup.group, userBalance.lpToken, userBalance.user, userBalance.shares, blockTimestamp, false);
+            deposit(referrerGroupAddress, userBalance.lpToken, userBalance.user, userBalance.shares, blockTimestamp, false);
+            withdraw(depositorGroup.group, userBalance.lpToken, userBalance.user, userBalance.unclaimedShares, blockTimestamp, true);
+            deposit(referrerGroupAddress, userBalance.lpToken, userBalance.user, userBalance.unclaimedShares, blockTimestamp, true);
             member.group = referrerGroupAddress;
             member.save();
             store.remove("UserBalanceInfo", userBalance.id.toHexString());
@@ -183,7 +187,7 @@ function updatePool(group: Bytes, lpToken: Bytes, blockTimestamp: BigInt): void 
     if (blockTimestamp.gt(EIGEN_LAYER_LAUNCH_TIME) && !pool.totalShares.equals(BIGINT_ZERO)) {
         let timeSinceLastRewardUpdate = blockTimestamp.minus(pool.lastRewardTimestamp.le(EIGEN_LAYER_LAUNCH_TIME) ? EIGEN_LAYER_LAUNCH_TIME : pool.lastRewardTimestamp);
         // eigenLayerPointsReward = timeSinceLastRewardUpdate * lpInfo.eigenLayerPointsPerSec * lpInfo.priceToETH * lpInfo.totalShares * lpInfo.mLrtRatio
-        let eigenLayerPointsReward = mul(mul(mul(mul(timeSinceLastRewardUpdate, lpInfo.eigenLayerPointsPerSec), lpInfo.priceToETH), pool.totalShares), lpInfo.mLrtRatio); 
+        let eigenLayerPointsReward = mul(mul(mul(timeSinceLastRewardUpdate.times(lpInfo.eigenLayerPointsPerSec), lpInfo.priceToETH), pool.totalShares), lpInfo.mLrtRatio); 
         pool.accEigenLayerPointPerShare = pool.accEigenLayerPointPerShare.plus(div(eigenLayerPointsReward, pool.totalShares));
     }
 
@@ -192,8 +196,8 @@ function updatePool(group: Bytes, lpToken: Bytes, blockTimestamp: BigInt): void 
     let globalInfo = loadOrCreateGlobalInfo();
     let timeSinceLastRewardUpdate = blockTimestamp.minus(pool.lastRewardTimestamp);
     // eigenpiePointsReward = timeSinceLastRewardUpdate * lpInfo.eigenpiePointsPerSec * lpInfo.priceToETH * (lpInfo.totalShares + lpInfo.totalUnclaimedShares) * groupInfo.groupBoost * globalInfo.globalBoost
-    let eigenpiePointsReward = mul(mul(mul(mul(mul(timeSinceLastRewardUpdate, lpInfo.eigenpiePointsPerSec), lpInfo.priceToETH), pool.totalShares.plus(pool.totalUnclaimedShares)), groupInfo.groupBoost), globalInfo.globalBoost)
-    pool.accEigenLayerPointPerShare = pool.accEigenLayerPointPerShare.plus(div(eigenpiePointsReward, pool.totalShares.plus(pool.totalUnclaimedShares)));
+    let eigenpiePointsReward = mul(mul(mul(mul(timeSinceLastRewardUpdate.times(lpInfo.eigenpiePointsPerSec), lpInfo.priceToETH), pool.totalShares.plus(pool.totalUnclaimedShares)), groupInfo.groupBoost), globalInfo.globalBoost)
+    pool.accEigenpiePointPerShare = pool.accEigenpiePointPerShare.plus(div(eigenpiePointsReward, pool.totalShares.plus(pool.totalUnclaimedShares)));
     pool.lastRewardTimestamp = blockTimestamp;
     pool.save();
 }    
@@ -259,8 +263,8 @@ function withdraw(groupAddrss: Bytes, lpToken: Bytes, user: Bytes, shares: BigIn
 
     // update group boost
     let group = loadOrCreateGroupInfo(groupAddrss);
-    let depositTvl = mul(shares, loadOrCreateLpInfo(lpToken).priceToETH);
-    group.totalTvl = group.totalTvl.minus(depositTvl);
+    let withdrawTvl = mul(shares, loadOrCreateLpInfo(lpToken).priceToETH);
+    group.totalTvl = group.totalTvl.minus(withdrawTvl);
     group.groupBoost = calEigenpiePointGroupBoost(group.totalTvl);
     
     userBalanceInfo.save()
@@ -362,7 +366,7 @@ function loadOrCreateUserInfo(user: Bytes): UserInfo {
     if (!userInfo) {
         userInfo = new UserInfo(user);
         userInfo.user = user;
-        userInfo.referrer = BYTES_ZERO;
+        userInfo.referrer = ADDRESS_ZERO;
         userInfo.referralCount = BIGINT_ZERO;
         userInfo.group = user;
         userInfo.eigenLayerPoints = BIGINT_ZERO;
@@ -382,7 +386,7 @@ function loadOrCreateGroupInfo(group: Bytes): GroupInfo {
         groupInfo = new GroupInfo(group);
         groupInfo.group = group;
         groupInfo.totalTvl = BIGINT_ZERO;
-        groupInfo.groupBoost = BIGINT_ONE;
+        groupInfo.groupBoost = BIGINT_ONE.times(ETHER_ONE);
         groupInfo.save();
     }
 
@@ -390,11 +394,11 @@ function loadOrCreateGroupInfo(group: Bytes): GroupInfo {
 }
 
 function loadOrCreateGlobalInfo(): GlobalInfo {
-    let globalInfo = GlobalInfo.load(BYTES_ZERO);
+    let globalInfo = GlobalInfo.load(ADDRESS_ZERO);
 
     if (!globalInfo) {
-        globalInfo = new GlobalInfo(BYTES_ZERO);
-        globalInfo.globalBoost = BIGINT_ONE;
+        globalInfo = new GlobalInfo(ADDRESS_ZERO);
+        globalInfo.globalBoost = BIGINT_ONE.times(ETHER_ONE);
         globalInfo.save();
     }
 
@@ -409,7 +413,7 @@ function getEigenpiePointsPerSec(lpToken: Bytes): BigInt {
 }
 
 function calEigenpiePointGroupBoost(groupTvl: BigInt): BigInt {
-    let boostMultiplier = DENOMINATOR
+    let boostMultiplier = ETHER_ONE;
 
     // Define TVL thresholds and their corresponding boost values
     const tvlThresholds: BigInt[] = [
@@ -425,7 +429,7 @@ function calEigenpiePointGroupBoost(groupTvl: BigInt): BigInt {
     // Determine the boost multiplier based on the total TVL
     for (let i = tvlThresholds.length - 1; i >= 0; i--) {
         if (groupTvl.ge(tvlThresholds[i])) {
-            boostMultiplier = BigInt.fromI32(boostValues[i])
+            boostMultiplier = ETHER_ONE.times(BigInt.fromI32(boostValues[i])).div(DENOMINATOR);
             break
         }
     }
@@ -453,30 +457,30 @@ function updateGlobalBoost(blockTimestamp: BigInt): void {
     if (blockTimestamp.le(BigInt.fromI32(1707782400))) {
         // 2X global boost
         // Duration: from Eigenpie launche time to 2024/2/13 0:00 UTC
-        if (globalInfo.globalBoost.notEqual(BIGINT_TWO)) {
+        if (globalInfo.globalBoost.notEqual(BIGINT_TWO.times(ETHER_ONE))) {
             updateAllPools(blockTimestamp);
-            globalInfo.globalBoost = BIGINT_TWO;
+            globalInfo.globalBoost = BIGINT_TWO.times(ETHER_ONE);
         }
     } else if (blockTimestamp.le(BigInt.fromI32(1708765200))) {
         // 1X global boost
         // Duration: from 2024/2/13 0:00 UTC to 2024/2/24 9:00 UTC
-        if (globalInfo.globalBoost.notEqual(BIGINT_ONE)) {
+        if (globalInfo.globalBoost.notEqual(BIGINT_ONE.times(ETHER_ONE))) {
             updateAllPools(blockTimestamp);
-            globalInfo.globalBoost = BIGINT_ONE;
+            globalInfo.globalBoost = BIGINT_ONE.times(ETHER_ONE);
         }
     } else if (blockTimestamp.le(BigInt.fromI32(1709629200))) {
         // 2X global boost
         // Duration: from 2024/2/24 9:00 to 2024/3/5 9:00 UTC
-        if (globalInfo.globalBoost.notEqual(BIGINT_TWO)) {
+        if (globalInfo.globalBoost.notEqual(BIGINT_TWO.times(ETHER_ONE))) {
             updateAllPools(blockTimestamp);
-            globalInfo.globalBoost = BIGINT_TWO;
+            globalInfo.globalBoost = BIGINT_TWO.times(ETHER_ONE);
         }
     } else {
         // 1X global boost
         // Duration: from 2024/3/5 9:00 UTC to future
-        if (globalInfo.globalBoost.notEqual(BIGINT_ONE)) {
+        if (globalInfo.globalBoost.notEqual(BIGINT_ONE.times(ETHER_ONE))) {
             updateAllPools(blockTimestamp);
-            globalInfo.globalBoost = BIGINT_ONE;
+            globalInfo.globalBoost = BIGINT_ONE.times(ETHER_ONE);
         }
     }
     globalInfo.save();
