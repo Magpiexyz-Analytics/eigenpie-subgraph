@@ -308,7 +308,9 @@ function deposit(groupAddress: Bytes, lpToken: Bytes, user: Bytes, shares: BigIn
     let depositTvl = mul(shares, loadOrCreateLpInfo(lpToken).priceToETH);
     group.totalTvl = group.totalTvl.plus(depositTvl);
     group.groupBoost = calEigenpiePointGroupBoost(group.totalTvl);
-    
+    let globalInfo = loadOrCreateGlobalInfo();
+    globalInfo.totalTvl = globalInfo.totalTvl.plus(depositTvl);
+    globalInfo.save();
     userBalanceInfo.save()
     pool.save();
     group.save()
@@ -342,7 +344,9 @@ function withdraw(groupAddress: Bytes, lpToken: Bytes, user: Bytes, shares: BigI
     let withdrawTvl = mul(shares, loadOrCreateLpInfo(lpToken).priceToETH);
     group.totalTvl = group.totalTvl.minus(withdrawTvl);
     group.groupBoost = calEigenpiePointGroupBoost(group.totalTvl);
-    
+    let globalInfo = loadOrCreateGlobalInfo();
+    globalInfo.totalTvl = globalInfo.totalTvl.minus(withdrawTvl);
+    globalInfo.save();
     userBalanceInfo.save()
     pool.save();
     group.save()
@@ -476,6 +480,7 @@ function loadOrCreateGlobalInfo(): GlobalInfo {
         globalInfo = new GlobalInfo(ADDRESS_ZERO);
         globalInfo.globalBoost = BIGINT_ONE.times(ETHER_ONE);
         globalInfo.lastDailyUpdateAllPoolsTimestamp = BIGINT_ZERO;
+        globalInfo.totalTvl = BIGINT_ZERO;
         globalInfo.save();
     }
 
