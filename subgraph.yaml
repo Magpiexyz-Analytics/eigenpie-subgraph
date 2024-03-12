@@ -51,11 +51,11 @@ dataSources:
           handler: handlePriceProviderExchangeRateUpdateEvent
       file: ./src/masterEigenpie.ts
   - kind: ethereum
-    name: CurveLP
+    name: mstETH_wstETH_CurveLP
     network: mainnet
     source:
       abi: CurveLP
-      address: "0xC040041088B008EAC1bf5FB886eAc8c1e244B60F"
+      address: "0xC040041088B008EAC1bf5FB886eAc8c1e244B60F" 
       startBlock: 19188963
     mapping:
       kind: ethereum/events
@@ -81,25 +81,55 @@ dataSources:
           handler: handleCurveRemoveLiquidityImbalance
       file: ./src/masterEigenpie.ts
   - kind: ethereum
-    name: mLRT
+    name: mswETH_swETH_CurveLP
     network: mainnet
     source:
-      abi: MLRT
-      address: "0x49446A0874197839D15395B908328a74ccc96Bc0"
-      startBlock: 19095405
+      abi: CurveLP
+      address: "0x2022d9AF896eCF0F1f5B48cdDaB9e74b5aAbCf00"
+      startBlock: 19189942
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
-        - MLRT
+        - AssetTransferLP
       abis:
-        - name: MLRT
-          file: ./abis/MLRT.json
+        - name: CurveLP
+          file: ./abis/CurveLp.json
       eventHandlers:
         - event: Transfer(indexed address,indexed address,uint256)
-          handler: handleMlrtTransfer
+          handler: handleCurveLpTransfer
+        - event: TokenExchange(indexed address,int128,uint256,int128,uint256)
+          handler: handleCurveTrading
+        - event: AddLiquidity(indexed address,uint256[],uint256[],uint256,uint256)
+          handler: handleCurveAddLiquidity
+        - event: RemoveLiquidity(indexed address,uint256[],uint256[],uint256)
+          handler: handleCurveRemoveLiquidity
+        - event: RemoveLiquidityOne(indexed address,int128,uint256,uint256,uint256)
+          handler: handleCurveRemoveLiquidityOne
+        - event: RemoveLiquidityImbalance(indexed address,uint256[],uint256[],uint256,uint256)
+          handler: handleCurveRemoveLiquidityImbalance
       file: ./src/masterEigenpie.ts
+  # - kind: ethereum
+  #   name: mLRT
+  #   network: mainnet
+  #   source:
+  #     abi: MLRT
+  #     address: "0x49446A0874197839D15395B908328a74ccc96Bc0"
+  #     startBlock: 19095405
+  #   mapping:
+  #     kind: ethereum/events
+  #     apiVersion: 0.0.7
+  #     language: wasm/assemblyscript
+  #     entities:
+  #       - MLRT
+  #     abis:
+  #       - name: MLRT
+  #         file: ./abis/MLRT.json
+  #     eventHandlers:
+  #       - event: Transfer(indexed address,indexed address,uint256)
+  #         handler: handleMlrtTransfer
+  #     file: ./src/masterEigenpie.ts
   - kind: ethereum
     name: ZtakingPool
     network: mainnet
@@ -123,46 +153,44 @@ dataSources:
         - event: Withdraw(indexed uint256,indexed address,indexed address,uint256)
           handler: handleZircuitWithdraw
       file: ./src/masterEigenpie.ts
-  # - kind: ethereum
-  #   name: EigenpieConfig
-  #   network: mainnet
-  #   source:
-  #     address: "0x20b70E4A1883b81429533FeD944d7957121c7CAB"
-  #     abi: EigenpieConfig
-  #     startBlock: 19090400
-  #   mapping:
-  #     kind: ethereum/events
-  #     apiVersion: 0.0.7
-  #     language: wasm/assemblyscript
-  #     entities:
-  #       - AddedNewSupportedAsset
-  #     abis:
-  #       - name: EigenpieConfig
-  #         file: ./abis/EigenpieConfig.json
-  #     eventHandlers:
-  #       - event: AddedNewSupportedAsset(indexed address,indexed address,uint256)
-  #         handler: handleAddedNewSupportedAsset
-  #       - event: AssetStrategyUpdate(indexed address,indexed address)
-  #         handler: handleAssetStrategyUpdate
-  #       - event: ReceiptTokenUpdated(indexed address,indexed address)
-  #         handler: handleReceiptTokenUpdated
-  #     file: ./src/eigenpie-config.ts
-# templates:
-#   - name: MLRT
-#     kind: ethereum/contract
-#     network: mainnet
-#     source:
-#       abi: MLRT
-#     mapping:
-#       kind: ethereum/events
-#       apiVersion: 0.0.7
-#       language: wasm/assemblyscript
-#       file: ./src/masterEigenpie.ts
-#       entities:
-#         - MLRT
-#       abis:
-#         - name: MLRT
-#           file: ./abis/MLRT.json
-#       eventHandlers:
-#         - event: Transfer(indexed address,indexed address,uint256)
-#           handler: handleTransfer
+  - kind: ethereum
+    name: EigenpieConfig
+    network: mainnet
+    source:
+      address: "0x20b70E4A1883b81429533FeD944d7957121c7CAB"
+      abi: EigenpieConfig
+      startBlock: 19090400
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - AddedNewSupportedAsset
+      abis:
+        - name: EigenpieConfig
+          file: ./abis/EigenpieConfig.json
+      eventHandlers:
+        - event: AddedNewSupportedAsset(indexed address,indexed address,uint256)
+          handler: handleAddedNewSupportedAsset
+        - event: ReceiptTokenUpdated(indexed address,indexed address)
+          handler: handleReceiptTokenUpdated
+      file: ./src/masterEigenpie.ts
+templates:
+  - name: MLRT
+    kind: ethereum/contract
+    network: mainnet
+    source:
+      abi: MLRT
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/masterEigenpie.ts
+      entities:
+        - MLRT
+      abis:
+        - name: MLRT
+          file: ./abis/MLRT.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleMlrtTransfer

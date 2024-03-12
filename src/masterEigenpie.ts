@@ -2,40 +2,50 @@ import { Address, BigInt, Bytes, log, store } from "@graphprotocol/graph-ts";
 import { Transfer as CurveLpTransferEvent, TokenExchange as CurveLpTokenExchangeEvent, AddLiquidity as CurveLpAddLiquidityEvent, RemoveLiquidity as CurveLpRemoveLiquidityEvent, RemoveLiquidityOne as CurveLpRemoveLiquidityOneEvent, RemoveLiquidityImbalance as CurveLpRemoveLiquidityImbalanceEvent, CurveLP } from "../generated/CurveLP-mst-wstETH/CurveLP"
 import { Transfer as MlrtTransferEvent } from "../generated/templates/MLRT/MLRT"
 import { AssetDeposit as EigenpieStakingAssetDepositEventV1, AssetDeposit1 as EigenpieStakingAssetDepositEventV2 } from "../generated/EigenpieStaking/EigenpieStaking"
+import { AddedNewSupportedAsset as AddedNewSupportedAssetEvent, ReceiptTokenUpdated as ReceiptTokenUpdatedEvent } from "../generated/EigenpieConfig/EigenpieConfig"
+
 import { Deposit as ZircuitDepositEvent, Withdraw as ZircuitWithdrawEvent } from "../generated/ZtakingPool/ZtakingPool"
 import { ExchangeRateUpdate as PriceProviderExchangeRateUpdateEvent } from "../generated/PriceProvider/PriceProvider"
 import { GlobalInfo, GroupInfo, LpInfo, PoolInfo, UserBalanceInfo, UserInfo } from "../generated/schema";
-<<<<<<< HEAD
-import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH_WSTETH_CURVE_LP, MSTETH_WSTETH_PCS_LP, MSTETH_WSTETH_RANGE_LP, MSWETH_SWETH_CURVE_LP, STETH } from "./constants";
-=======
-import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, ETHER_THREE, ETHER_TWO, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH, MSTETH_WSTETH_CURVE_LP, MSTETH_ZIRCUIT_STAKING_LP, MSWETH, MSWETH_SWETH_CURVE_LP, MWBETH, ZIRCUIT_STAKING } from "./constants";
->>>>>>> f5025bb (fix bug)
+import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, ETHER_THREE, ETHER_TWO, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH, MSTETH_WSTETH_CURVE_LP, MSTETH_WSTETH_PCS_LP, MSTETH_WSTETH_RANGE_LP, MSTETH_ZIRCUIT_STAKING_LP, MSWETH, MSWETH_SWETH_CURVE_LP, MSWETH_ZIRCUIT_STAKING_LP, MWBETH, MWBETH_ZIRCUIT_STAKING_LP, ZIRCUIT_STAKING } from "./constants";
+import { MLRT } from "../generated/templates";
+
+// ################################# Eigenpie Config ######################################## //
+export function handleAddedNewSupportedAsset(event: AddedNewSupportedAssetEvent): void {
+    MLRT.create(event.params.receipt);
+}
+  
+export function handleReceiptTokenUpdated(event: ReceiptTokenUpdatedEvent): void {
+    MLRT.create(event.params.receipt);
+}
 
 // ################################# Zircuit ######################################## //
 export function handleZircuitDeposit(event: ZircuitDepositEvent): void {
     const mlrtAddress = toLowerCase(event.params.token);
-    if (isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSWETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSTETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MWBETH)) {
+    if (isZircuitSupportedMlrt(mlrtAddress)) {
         const zircuitDepositContractAddress = toLowerCase(event.address);
         const depositorAddress = toLowerCase(event.params.depositor);
         const lpToken = zircuitDepositContractAddress.concat(mlrtAddress);
         const depositorGroupAddress = loadOrCreateUserInfo(depositorAddress).group;
         const shares = event.params.amount;
         deposit(depositorGroupAddress, lpToken, depositorAddress, shares, event.block.timestamp, false);
-        updateGlobalBoost(event.block.timestamp);
     }
+    dailyUpdateAllPools(event.block.timestamp);
+    updateGlobalBoost(event.block.timestamp);
 }
 
 export function handleZircuitWithdraw(event: ZircuitWithdrawEvent): void {
     const mlrtAddress = toLowerCase(event.params.token);
-    if (isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSWETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSTETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MWBETH)) {
+    if (isZircuitSupportedMlrt(mlrtAddress)) {
         const zircuitDepositContractAddress = toLowerCase(event.address);
         const withdrawerAddress = toLowerCase(event.params.withdrawer);
         const lpToken = zircuitDepositContractAddress.concat(mlrtAddress);
         const withdrawerGroupAddress = loadOrCreateUserInfo(withdrawerAddress).group;
         const shares = event.params.amount;
         withdraw(withdrawerGroupAddress, lpToken, withdrawerAddress, shares, event.block.timestamp, false);
-        updateGlobalBoost(event.block.timestamp);
     }
+    dailyUpdateAllPools(event.block.timestamp);
+    updateGlobalBoost(event.block.timestamp);
 }
 
 // ################################# Curve LP ######################################## //
@@ -56,6 +66,7 @@ export function handleCurveLpTransfer(event: CurveLpTransferEvent): void {
         const receiverInfo = loadOrCreateUserInfo(receiverAddress);
         deposit(receiverInfo.group, lpToken, receiverAddress, transferShares, event.block.timestamp, false);
     }
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -63,27 +74,15 @@ export function handleCurveTrading(event: CurveLpTokenExchangeEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
     updateCurveLpPriceToEthAndMlrtRatio(lpToken);
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
-}
-
-function updateCurveLpPriceToEthAndMlrtRatio(lpToken: Bytes): void {
-    const CurveLpContract = CurveLP.bind(Address.fromBytes(lpToken));
-    const mLrtToken = toLowerCase(CurveLpContract.coins(BIGINT_ZERO));
-    const lstToken = toLowerCase(CurveLpContract.coins(BIGINT_ONE));
-    const totalShares = CurveLpContract.totalSupply();
-    let balances = CurveLpContract.get_balances();
-    let mLRTTvl = mul(balances[0], loadOrCreateLpInfo(mLrtToken).priceToETH)
-    let lstTvl = mul(balances[1], LST_PRICE_MAP.get(lstToken.toHexString()));
-    const lpInfo = loadOrCreateLpInfo(lpToken);
-    lpInfo.mLrtRatio = div(mLRTTvl, mLRTTvl.plus(lstTvl));
-    lpInfo.priceToETH = div(mLRTTvl.plus(lstTvl), totalShares);
-    lpInfo.save();
 }
 
 export function handleCurveAddLiquidity(event: CurveLpAddLiquidityEvent): void {
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
     updateCurveLpPriceToEthAndMlrtRatio(lpToken);
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -91,6 +90,7 @@ export function handleCurveRemoveLiquidity(event: CurveLpRemoveLiquidityEvent): 
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
     updateCurveLpPriceToEthAndMlrtRatio(lpToken);
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -98,6 +98,7 @@ export function handleCurveRemoveLiquidityOne(event: CurveLpRemoveLiquidityOneEv
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
     updateCurveLpPriceToEthAndMlrtRatio(lpToken);
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -105,6 +106,7 @@ export function handleCurveRemoveLiquidityImbalance(event: CurveLpRemoveLiquidit
     const lpToken = toLowerCase(event.address);
     updatePools(lpToken, event.block.timestamp);
     updateCurveLpPriceToEthAndMlrtRatio(lpToken);
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -132,6 +134,7 @@ export function handleMlrtTransfer(event: MlrtTransferEvent): void {
         const receiverInfo = loadOrCreateUserInfo(receiverAddresss);
         deposit(receiverInfo.group, lpToken, receiverAddresss, transferShares, event.block.timestamp, false);
     }
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -152,6 +155,7 @@ export function handleEigenpieStakingAssetDepositV1(event: EigenpieStakingAssetD
         depositor.save();
         referrer.save();
     }
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -179,6 +183,7 @@ export function handleEigenpieStakingAssetDepositV2(event: EigenpieStakingAssetD
         depositor.save();
         referrer.save();
     }
+    dailyUpdateAllPools(event.block.timestamp);
     updateGlobalBoost(event.block.timestamp);
 }
 
@@ -192,15 +197,31 @@ export function handlePriceProviderExchangeRateUpdateEvent(event: PriceProviderE
     let lpInfo = loadOrCreateLpInfo(lpToken);
     lpInfo.priceToETH = lpTokenPriceToEth;
     lpInfo.save();
-    if (isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH) || isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH) || isStringEqualIgnoreCase(lpToken.toHexString(), MWBETH)) {
+    if (isZircuitSupportedMlrt(lpToken)) {
         let zircuitLpToken = Bytes.fromHexString(ZIRCUIT_STAKING.concat(lpToken.toHexString()));
         let zircuitLpInfo = loadOrCreateLpInfo(zircuitLpToken);
         zircuitLpInfo.priceToETH = lpTokenPriceToEth;
         zircuitLpInfo.save();
     }
+    dailyUpdateAllPools(event.block.timestamp);
+    updateGlobalBoost(event.block.timestamp);
 }
 
 // ################################# Helper Functions ######################################## //
+
+function updateCurveLpPriceToEthAndMlrtRatio(lpToken: Bytes): void {
+    const CurveLpContract = CurveLP.bind(Address.fromBytes(lpToken));
+    const mLrtToken = toLowerCase(CurveLpContract.coins(BIGINT_ZERO));
+    const lstToken = toLowerCase(CurveLpContract.coins(BIGINT_ONE));
+    const totalShares = CurveLpContract.totalSupply();
+    let balances = CurveLpContract.get_balances();
+    let mLRTTvl = mul(balances[0], loadOrCreateLpInfo(mLrtToken).priceToETH)
+    let lstTvl = mul(balances[1], LST_PRICE_MAP.get(lstToken.toHexString()));
+    const lpInfo = loadOrCreateLpInfo(lpToken);
+    lpInfo.mLrtRatio = div(mLRTTvl, mLRTTvl.plus(lstTvl));
+    lpInfo.priceToETH = div(mLRTTvl.plus(lstTvl), totalShares);
+    lpInfo.save();
+}
 
 function mergeGroups(depositorGroupAddress: Bytes, referrerGroupAddress: Bytes, blockTimestamp: BigInt): void {
     const depositorGroup = loadOrCreateGroupInfo(depositorGroupAddress);
@@ -454,6 +475,7 @@ function loadOrCreateGlobalInfo(): GlobalInfo {
     if (!globalInfo) {
         globalInfo = new GlobalInfo(ADDRESS_ZERO);
         globalInfo.globalBoost = BIGINT_ONE.times(ETHER_ONE);
+        globalInfo.lastDailyUpdateAllPoolsTimestamp = BIGINT_ZERO;
         globalInfo.save();
     }
 
@@ -461,12 +483,24 @@ function loadOrCreateGlobalInfo(): GlobalInfo {
 }
 
 function getEigenpiePointsPerSec(lpToken: Bytes): BigInt {
-    if (isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_WSTETH_CURVE_LP) || isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_ZIRCUIT_STAKING_LP)) {
-        return ETHER_TWO.div(BigInt.fromI32(3600))
-    } else if (isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH_SWETH_CURVE_LP)) {
-        return ETHER_THREE.div(BigInt.fromI32(3600))
+    if (isSwellIntegrationLp(lpToken)) {
+        return ETHER_THREE.div(BigInt.fromI32(3600));
     }
+    if (isDeFiIntegrationLp(lpToken)) {
+        return ETHER_TWO.div(BigInt.fromI32(3600))
+    } 
     return ETHER_ONE.div(BigInt.fromI32(3600))
+}
+
+function isDeFiIntegrationLp(lpToken: Bytes): bool {
+    return isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_WSTETH_CURVE_LP) || 
+    isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_ZIRCUIT_STAKING_LP) || 
+    isStringEqualIgnoreCase(lpToken.toHexString(), MWBETH_ZIRCUIT_STAKING_LP);
+}
+
+function isSwellIntegrationLp(lpToken: Bytes): bool {
+    return isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH_SWETH_CURVE_LP) || 
+    isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH_ZIRCUIT_STAKING_LP);
 }
 
 function calEigenpiePointGroupBoost(groupTvl: BigInt): BigInt {
@@ -506,6 +540,15 @@ function updatePools(lpToken: Bytes, blockTimestamp: BigInt): void {
     for (let i = 0; i < pools.length; i++) {
         let pool = pools[i];
         updatePool(pool.group, pool.lpToken, blockTimestamp);
+    }
+}
+
+function dailyUpdateAllPools(blockTimestamp: BigInt): void {
+    let globalInfo = loadOrCreateGlobalInfo();
+    if (blockTimestamp.minus(globalInfo.lastDailyUpdateAllPoolsTimestamp).lt(BigInt.fromI32(3600*24))) {
+        updateAllPools(blockTimestamp);
+        globalInfo.lastDailyUpdateAllPoolsTimestamp = blockTimestamp;
+        globalInfo.save();
     }
 }
 
@@ -551,6 +594,9 @@ function toLowerCase(address: Bytes): Bytes {
     return Bytes.fromHexString(address.toHexString().toLowerCase());
 }
 
+function isZircuitSupportedMlrt(mlrtAddress: Bytes): bool {
+    return isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSWETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MSTETH) || isStringEqualIgnoreCase(mlrtAddress.toHexString(), MWBETH)
+}
 
 // ################################# Math Utils ######################################## //
 function mul(a: BigInt, b: BigInt): BigInt {

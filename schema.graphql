@@ -60,4 +60,5 @@ type GroupInfo @entity(immutable: false) {
 type GlobalInfo @entity(immutable: false) {
   id: Bytes! # hash(bytes zero)
   globalBoost: BigInt!
+  lastDailyUpdateAllPoolsTimestamp: BigInt!
 }
