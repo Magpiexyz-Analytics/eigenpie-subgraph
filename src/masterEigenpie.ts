@@ -1,6 +1,6 @@
 import { Address, BigInt, Bytes, log, store } from "@graphprotocol/graph-ts";
-import { Transfer as CurveLpTransferEvent, TokenExchange as CurveLpTokenExchangeEvent, AddLiquidity as CurveLpAddLiquidityEvent, RemoveLiquidity as CurveLpRemoveLiquidityEvent, RemoveLiquidityOne as CurveLpRemoveLiquidityOneEvent, RemoveLiquidityImbalance as CurveLpRemoveLiquidityImbalanceEvent, CurveLP } from "../generated/CurveLP-mst-wstETH/CurveLP"
-import { Transfer as MlrtTransferEvent } from "../generated/templates/MLRT/MLRT"
+import { Transfer as CurveLpTransferEvent, TokenExchange as CurveLpTokenExchangeEvent, AddLiquidity as CurveLpAddLiquidityEvent, RemoveLiquidity as CurveLpRemoveLiquidityEvent, RemoveLiquidityOne as CurveLpRemoveLiquidityOneEvent, RemoveLiquidityImbalance as CurveLpRemoveLiquidityImbalanceEvent, CurveLP } from "../generated/CurveLP/CurveLP"
+import { Transfer as MlrtTransferEvent } from "../generated/MLRT/MLRT"
 import { AssetDeposit as AssetDepositEventV1, AssetDeposit1 as AssetDepositEventV2 } from "../generated/EigenpieStaking/EigenpieStaking"
 import { ExchangeRateUpdate as PriceProviderExchangeRateUpdateEvent } from "../generated/PriceProvider/PriceProvider"
 import { GlobalInfo, GroupInfo, LpInfo, PoolInfo, UserBalanceInfo, UserInfo } from "../generated/schema";
