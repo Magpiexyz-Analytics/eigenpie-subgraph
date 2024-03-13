@@ -428,6 +428,7 @@ function loadOrCreateUserBalanceInfo(group: Bytes, lpToken: Bytes, user: Bytes):
         userBalanceInfo = new UserBalanceInfo(group.concat(lpToken).concat(user));
         userBalanceInfo.group = group;
         userBalanceInfo.lpToken = lpToken;
+        userBalanceInfo.poolInfo = group.concat(lpToken);
         userBalanceInfo.user = user;
         userBalanceInfo.shares = BIGINT_ZERO;
         userBalanceInfo.unclaimedShares = BIGINT_ZERO;

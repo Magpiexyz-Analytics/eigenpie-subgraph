@@ -19,7 +19,8 @@ type PoolInfo @entity(immutable: false) {
 type UserBalanceInfo @entity {
   id: Bytes! # hash(group, lpToken, user)
   group: Bytes!
-  lpToken: Bytes!
+  lpToken: LpInfo!
+  poolInfo: PoolInfo!
   user: UserInfo!
   shares: BigInt!
   unclaimedShares: BigInt!
