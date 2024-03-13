@@ -11,17 +11,9 @@ import {
   afterAll,
 } from "matchstick-as/assembly/index";
 import {
-  Transfer as CurveLpTransferEvent,
-  TokenExchange as CurveLpTokenExchangeEvent,
-  AddLiquidity as CurveLpAddLiquidityEvent,
-  RemoveLiquidity as CurveLpRemoveLiquidityEvent,
-  RemoveLiquidityOne as CurveLpRemoveLiquidityOneEvent,
-  RemoveLiquidityImbalance as CurveLpRemoveLiquidityImbalanceEvent,
-  CurveLP,
-  TokenExchange__Params,
-  TokenExchange,
-} from "../generated/CurveLP/CurveLP";
-import { createCurveLpTokenExchangeEvent } from "./master-eigenpie-utils";
+  createCurveLpTokenExchangeEvent,
+  createCurveLpTransferEvent,
+} from "./master-eigenpie-utils";
 import {
   GlobalInfo,
   GroupInfo,
@@ -30,23 +22,7 @@ import {
   UserBalanceInfo,
   UserInfo,
 } from "../generated/schema";
-import {
-  ADDRESS_ZERO,
-  BIGINT_ONE,
-  BIGINT_TWO,
-  BIGINT_ZERO,
-  DENOMINATOR,
-  EIGENPIE_PREDEPLOST_HELPER,
-  EIGEN_LAYER_LAUNCH_TIME,
-  EIGEN_LAYER_POINT_PER_SEC,
-  ETHER_ONE,
-  ETHER_TEN,
-  LPTOKEN_LIST,
-  LST_PRICE_MAP,
-  LST_TO_MLRT_MAP,
-  MSTETH_WSTETH_CURVE_LP,
-  MSWETH_SWETH_CURVE_LP,
-} from "../src/constants";
+import { ADDRESS_ZERO, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE } from "../src/constants";
 // import { Block, Transaction } from "@graphprotocol/graph-ts";
 import {
   handleCurveLpTransfer,
@@ -158,10 +134,12 @@ describe("Mocked Events", () => {
     clearStore();
   });
 
-  test("Can call mappings with custom events", () => {
+  test("Can call mappings with custom events For Handle Curve Trading", () => {
     // Call mappings
+    let address = "SOME_RANDOM_ADDRESS"; // TODO replace with actual address
     let newCurveLpTokenExchangeEvent = createCurveLpTokenExchangeEvent(
       0xdead,
+      address,
       "0x53e12dfA22a903dCC0c54aBAf0E5017eEfC9DaF6",
       BigInt.fromI32(0),
       BigInt.fromString("63993754201653557777"),
@@ -186,5 +164,49 @@ describe("Mocked Events", () => {
       "tokens_bought",
       "54493385790308612876"
     );
+  });
+
+  test("Can call mappings with custom events", () => {
+    // Call mappings
+    let sender = "0x53e12dfA22a903dCC0c54aBAf0E5017eEfC9DaF6",
+      receiver = "0x53e12dfA22a903dCC0c54aBAf0E5017eEfC9DaF7",
+      lpAddress = "0x53e12dfA22a903dCC0c54aBAf0E5017eEfC9DaF8";
+
+    let newCurveLpTransferEvent = createCurveLpTransferEvent(
+      0xdead,
+      lpAddress,
+      sender,
+      receiver,
+      BigInt.fromString("123")
+    );
+
+    handleCurveLpTransfer(newCurveLpTransferEvent);
+
+    assert.entityCount("UserInfo", 2);
+    assert.fieldEquals("UserInfo", sender, "user", sender);
+    assert.fieldEquals("UserInfo", sender, "group", sender);
+    assert.fieldEquals("UserInfo", receiver, "user", receiver);
+    assert.fieldEquals("UserInfo", receiver, "group", receiver);
+    assert.fieldEquals("PoolInfo", sender.concat(lpAddress), "group", sender);
+    assert.fieldEquals(
+      "PoolInfo",
+      receiver.concat(lpAddress),
+      "group",
+      receiver
+    );
+    assert.fieldEquals(
+      "PoolInfo",
+      sender.concat(lpAddress),
+      "lpToken",
+      lpAddress
+    );
+    assert.fieldEquals(
+      "PoolInfo",
+      receiver.concat(lpAddress),
+      "lpToken",
+      lpAddress
+    );
+    // assert.fieldEquals("UserBalanceInfo",sender.concat()) // TODO : Add the assertions for the UserBalanceInfo
+    assert.fieldEquals("GlobalInfo",ADDRESS_ZERO,"globalBoost",ETHER_ONE);
   });
 });

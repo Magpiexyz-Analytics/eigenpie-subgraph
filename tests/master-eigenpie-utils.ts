@@ -1,8 +1,12 @@
 import { newMockEvent } from "matchstick-as";
 import { ethereum, Address, BigInt } from "@graphprotocol/graph-ts";
-import { TokenExchange as CurveLpTokenExchangeEvent } from "../generated/CurveLP/CurveLP";
+import {
+  TokenExchange as CurveLpTokenExchangeEvent,
+  Transfer as CurveLpTransferEvent,
+} from "../generated/CurveLP/CurveLP";
 export function createCurveLpTokenExchangeEvent(
   id: i32,
+  address: string,
   buyer: string,
   sold_id: BigInt,
   tokens_sold: BigInt,
@@ -14,7 +18,11 @@ export function createCurveLpTokenExchangeEvent(
   );
 
   curveLpTokenExchangeEvent.parameters = new Array();
-  let idParam = new ethereum.EventParam("id", ethereum.Value.fromI32(id));
+  let idParam = new ethereum.EventParam("address", ethereum.Value.fromI32(id));
+  let addressParam = new ethereum.EventParam(
+    "addresss",
+    ethereum.Value.fromString(address)
+  );
   let buyerParam = new ethereum.EventParam(
     "buyer",
     ethereum.Value.fromAddress(Address.fromString(buyer))
@@ -43,6 +51,45 @@ export function createCurveLpTokenExchangeEvent(
   curveLpTokenExchangeEvent.parameters.push(tokenSoldParam);
   curveLpTokenExchangeEvent.parameters.push(boughtIdParam);
   curveLpTokenExchangeEvent.parameters.push(tokensBoughtParam);
+  curveLpTokenExchangeEvent.parameters.push(addressParam);
 
   return curveLpTokenExchangeEvent;
+}
+
+export function createCurveLpTransferEvent(
+  id: i32,
+  address: string,
+  sender: string,
+  receiver: string,
+  value: BigInt
+): CurveLpTransferEvent {
+  let CurveLpTransferEvent = changetype<CurveLpTransferEvent>(newMockEvent());
+
+  CurveLpTransferEvent.parameters = new Array();
+  let idParam = new ethereum.EventParam("id", ethereum.Value.fromI32(id));
+  let addressParam = new ethereum.EventParam(
+    "addresss",
+    ethereum.Value.fromString(address)
+  );
+  let senderParam = new ethereum.EventParam(
+    "sender",
+    ethereum.Value.fromAddress(Address.fromString(sender))
+  );
+  let receiverParam = new ethereum.EventParam(
+    "receiver",
+    ethereum.Value.fromString(receiver)
+  );
+  let valueParam = new ethereum.EventParam(
+    "value",
+    ethereum.Value.fromUnsignedBigInt(value)
+  );
+  // check whether the timestamp event is made or not?
+
+  CurveLpTransferEvent.parameters.push(idParam);
+  CurveLpTransferEvent.parameters.push(senderParam);
+  CurveLpTransferEvent.parameters.push(receiverParam);
+  CurveLpTransferEvent.parameters.push(valueParam);
+  CurveLpTransferEvent.parameters.push(addressParam);
+
+  return CurveLpTransferEvent;
 }
