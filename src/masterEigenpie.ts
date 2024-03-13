@@ -7,7 +7,7 @@ import { AddedNewSupportedAsset as AddedNewSupportedAssetEvent, ReceiptTokenUpda
 import { Deposit as ZircuitDepositEvent, Withdraw as ZircuitWithdrawEvent } from "../generated/ZtakingPool/ZtakingPool"
 import { ExchangeRateUpdate as PriceProviderExchangeRateUpdateEvent } from "../generated/PriceProvider/PriceProvider"
 import { GlobalInfo, GroupInfo, LpInfo, PoolInfo, UserBalanceInfo, UserInfo } from "../generated/schema";
-import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, ETHER_THREE, ETHER_TWO, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH, MSTETH_WSTETH_CURVE_LP, MSTETH_WSTETH_PCS_LP, MSTETH_WSTETH_RANGE_LP, MSTETH_ZIRCUIT_STAKING_LP, MSWETH, MSWETH_SWETH_CURVE_LP, MSWETH_ZIRCUIT_STAKING_LP, MWBETH, MWBETH_ZIRCUIT_STAKING_LP, ZIRCUIT_STAKING } from "./constants";
+import { ADDRESS_ZERO, BIGINT_ONE, BIGINT_TWO, BIGINT_ZERO, DENOMINATOR, EIGENPIE_PREDEPLOST_HELPER, EIGEN_LAYER_LAUNCH_TIME, EIGEN_LAYER_POINT_PER_SEC, ETHER_ONE, ETHER_TEN, ETHER_THREE, ETHER_TWO, LPTOKEN_LIST, LST_PRICE_MAP, LST_TO_MLRT_MAP, MSTETH, MSTETH_WSTETH_CURVE_LP, MSTETH_WSTETH_PCS_LP, MSTETH_WSTETH_RANGE_LP, MSTETH_ZIRCUIT_STAKING_LP, MSWETH, MSWETH_SWETH_CURVE_LP, MSWETH_SWETH_PCS_LP, MSWETH_SWETH_RANGE_LP, MSWETH_ZIRCUIT_STAKING_LP, MWBETH, MWBETH_ZIRCUIT_STAKING_LP, ZIRCUIT_STAKING } from "./constants";
 import { MLRT } from "../generated/templates";
 
 // ################################# Eigenpie Config ######################################## //
@@ -120,17 +120,15 @@ export function handleMlrtTransfer(event: MlrtTransferEvent): void {
     // process for sender
     if (senderAddress.notEqual(ADDRESS_ZERO) && 
     !isStringEqualIgnoreCase(senderAddress.toHexString(), EIGENPIE_PREDEPLOST_HELPER) && 
-    !isStringEqualIgnoreCase(senderAddress.toHexString(), MSTETH_WSTETH_RANGE_LP) &&
-    !isStringEqualIgnoreCase(senderAddress.toHexString(), MSTETH_WSTETH_PCS_LP)) {
+    !isDeFiIntegrationContract(senderAddress)) {
         const senderInfo = loadOrCreateUserInfo(senderAddress);
         withdraw(senderInfo.group, lpToken, senderAddress, transferShares, event.block.timestamp, false);
     }
 
     // process for receiver
     if (receiverAddresss.notEqual(ADDRESS_ZERO) && 
-    !isStringEqualIgnoreCase(receiverAddresss.toHexString(), EIGENPIE_PREDEPLOST_HELPER) &&
-    !isStringEqualIgnoreCase(receiverAddresss.toHexString(), MSTETH_WSTETH_RANGE_LP) &&
-    !isStringEqualIgnoreCase(receiverAddresss.toHexString(), MSTETH_WSTETH_PCS_LP)) {
+    !isStringEqualIgnoreCase(receiverAddresss.toHexString(), EIGENPIE_PREDEPLOST_HELPER) && 
+    !isDeFiIntegrationContract(senderAddress)) {
         const receiverInfo = loadOrCreateUserInfo(receiverAddresss);
         deposit(receiverInfo.group, lpToken, receiverAddresss, transferShares, event.block.timestamp, false);
     }
@@ -283,7 +281,7 @@ function deposit(groupAddress: Bytes, lpToken: Bytes, user: Bytes, shares: BigIn
     let userBalanceInfo = loadOrCreateUserBalanceInfo(groupAddress, lpToken, user);
 
     // harvest points for user
-    if (userBalanceInfo.shares.plus(userBalanceInfo.unclaimedShares).lt(BIGINT_ZERO)) {
+    if (userBalanceInfo.shares.plus(userBalanceInfo.unclaimedShares).gt(BIGINT_ZERO)) {
         harvestPoints(groupAddress, lpToken, user);
     }
 
@@ -361,6 +359,7 @@ function harvestPoints(group: Bytes, lpToken: Bytes, user: Bytes): void {
     
     // Harvest Eigenpie Points
     let pendingEigenpiePoints = calNewEigenpiePoints(group, lpToken, user);
+
     userInfo.eigenpiePoints = userInfo.eigenpiePoints.plus(pendingEigenpiePoints);
     referrerInfo.eigenpieReferralPoints = referrerInfo.eigenpieReferralPoints.plus(pendingEigenpiePoints.times(ETHER_ONE).div(ETHER_TEN));
     userInfo.save();
@@ -378,6 +377,7 @@ function calNewEigenpiePoints(group: Bytes, lpToken: Bytes, user: Bytes): BigInt
     let pool = loadOrCreatePoolInfo(group, lpToken);
     let userBalanceInfo = loadOrCreateUserBalanceInfo(group, lpToken, user);
     let pendingEigenpiePoints = mul(userBalanceInfo.shares.plus(userBalanceInfo.unclaimedShares), pool.accEigenpiePointPerShare).minus(userBalanceInfo.eigenpiePointsDebt);
+
     return pendingEigenpiePoints;
 }
 
@@ -489,23 +489,39 @@ function loadOrCreateGlobalInfo(): GlobalInfo {
 }
 
 function getEigenpiePointsPerSec(lpToken: Bytes): BigInt {
-    if (isSwellIntegrationLp(lpToken)) {
+    if (is3xBoost(lpToken)) {
         return ETHER_THREE.div(BigInt.fromI32(3600));
     }
-    if (isDeFiIntegrationLp(lpToken)) {
+    if (is2xBoost(lpToken)) {
         return ETHER_TWO.div(BigInt.fromI32(3600))
     } 
     return ETHER_ONE.div(BigInt.fromI32(3600))
 }
 
-function isDeFiIntegrationLp(lpToken: Bytes): bool {
+function isDeFiIntegrationContract(address: Bytes): bool {
+    if (isStringEqualIgnoreCase(address.toHexString(), MSTETH_WSTETH_RANGE_LP) ||
+    isStringEqualIgnoreCase(address.toHexString(), MSTETH_WSTETH_CURVE_LP) ||
+    isStringEqualIgnoreCase(address.toHexString(), MSTETH_WSTETH_PCS_LP) ||
+    isStringEqualIgnoreCase(address.toHexString(), MSWETH_SWETH_CURVE_LP) ||
+    isStringEqualIgnoreCase(address.toHexString(), MSWETH_SWETH_RANGE_LP) ||
+    isStringEqualIgnoreCase(address.toHexString(), MSWETH_SWETH_PCS_LP) ||
+    isStringEqualIgnoreCase(address.toHexString(), ZIRCUIT_STAKING)
+    ) {
+        return true;
+    }
+    return false;
+}
+
+function is2xBoost(lpToken: Bytes): bool {
     return isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_WSTETH_CURVE_LP) || 
+    isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_WSTETH_RANGE_LP) ||
     isStringEqualIgnoreCase(lpToken.toHexString(), MSTETH_ZIRCUIT_STAKING_LP) || 
     isStringEqualIgnoreCase(lpToken.toHexString(), MWBETH_ZIRCUIT_STAKING_LP);
 }
 
-function isSwellIntegrationLp(lpToken: Bytes): bool {
+function is3xBoost(lpToken: Bytes): bool {
     return isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH_SWETH_CURVE_LP) || 
+    isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH_SWETH_RANGE_LP) ||
     isStringEqualIgnoreCase(lpToken.toHexString(), MSWETH_ZIRCUIT_STAKING_LP);
 }
 
@@ -551,7 +567,7 @@ function updatePools(lpToken: Bytes, blockTimestamp: BigInt): void {
 
 function dailyUpdateAllPools(blockTimestamp: BigInt): void {
     let globalInfo = loadOrCreateGlobalInfo();
-    if (blockTimestamp.minus(globalInfo.lastDailyUpdateAllPoolsTimestamp).lt(BigInt.fromI32(3600*24))) {
+    if (blockTimestamp.minus(globalInfo.lastDailyUpdateAllPoolsTimestamp).gt(BigInt.fromI32(3600*24))) {
         updateAllPools(blockTimestamp);
         globalInfo.lastDailyUpdateAllPoolsTimestamp = blockTimestamp;
         globalInfo.save();
