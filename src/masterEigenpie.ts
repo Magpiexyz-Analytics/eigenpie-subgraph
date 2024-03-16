@@ -128,7 +128,7 @@ export function handleMlrtTransfer(event: MlrtTransferEvent): void {
     // process for receiver
     if (receiverAddresss.notEqual(ADDRESS_ZERO) && 
     !isStringEqualIgnoreCase(receiverAddresss.toHexString(), EIGENPIE_PREDEPLOST_HELPER) && 
-    !isDeFiIntegrationContract(senderAddress)) {
+    !isDeFiIntegrationContract(receiverAddresss)) {
         const receiverInfo = loadOrCreateUserInfo(receiverAddresss);
         deposit(receiverInfo.group, lpToken, receiverAddresss, transferShares, event.block.timestamp, false);
     }
@@ -627,4 +627,16 @@ function mul(a: BigInt, b: BigInt): BigInt {
 
 function div(a: BigInt, b: BigInt): BigInt {
     return a.times(ETHER_ONE).div(b);
+}
+
+// ################################# Debug Utils ######################################## //
+function debugLogInfo(userAddress: Bytes, entryPoint: string, transactionHash: Bytes): void {
+    if (isStringEqualIgnoreCase(userAddress.toHexString(), "")) {
+        let userInfo = loadOrCreateUserInfo(userAddress);
+        let userBalances = userInfo.userBalances.load();
+        for (let j = 0; j < userBalances.length; j++) {
+            let userBalance = userBalances[j];
+            log.debug(entryPoint.concat(": userBalance.shares {}, userBalance.group {}, userBalance.lpToke {}, transactionHash {}"), [userBalance.shares.toString(), userBalance.group.toHexString(), userBalance.lpToken.toHexString(), transactionHash.toHexString()]);
+        }        
+    }
 }
