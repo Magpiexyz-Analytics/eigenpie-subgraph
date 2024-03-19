@@ -63,4 +63,6 @@ type GlobalInfo @entity(immutable: false) {
   globalBoost: BigInt!
   lastDailyUpdateAllPoolsTimestamp: BigInt!
   totalTvl: BigInt!
+  totalEigenpiePoints: BigInt!
+  totalEigenLayerPoints: BigInt!
 }

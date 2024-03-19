@@ -362,8 +362,16 @@ function harvestPoints(group: Bytes, lpToken: Bytes, user: Bytes): void {
 
     userInfo.eigenpiePoints = userInfo.eigenpiePoints.plus(pendingEigenpiePoints);
     referrerInfo.eigenpieReferralPoints = referrerInfo.eigenpieReferralPoints.plus(pendingEigenpiePoints.times(ETHER_ONE).div(ETHER_TEN));
+
+    // Update total EigenLayer & Eigenpie Points
+    let globalInfo = loadOrCreateGlobalInfo();
+    globalInfo.totalEigenLayerPoints = globalInfo.totalEigenLayerPoints.plus(pendingEigenLayerPoints);
+    globalInfo.totalEigenpiePoints = globalInfo.totalEigenpiePoints.plus(pendingEigenpiePoints);
+    globalInfo.totalEigenpiePoints = globalInfo.totalEigenpiePoints.plus(pendingEigenpiePoints.times(ETHER_ONE).div(ETHER_TEN));
+
     userInfo.save();
     referrerInfo.save();
+    globalInfo.save();
 }
 
 function calNewEigenLayerPoints(group: Bytes, lpToken: Bytes, user: Bytes): BigInt {
@@ -482,6 +490,8 @@ function loadOrCreateGlobalInfo(): GlobalInfo {
         globalInfo.globalBoost = BIGINT_ONE.times(ETHER_ONE);
         globalInfo.lastDailyUpdateAllPoolsTimestamp = BIGINT_ZERO;
         globalInfo.totalTvl = BIGINT_ZERO;
+        globalInfo.totalEigenpiePoints = BIGINT_ZERO;
+        globalInfo.totalEigenLayerPoints = BIGINT_ZERO;
         globalInfo.save();
     }
 
