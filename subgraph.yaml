@@ -26,10 +26,133 @@ dataSources:
           file: ./abis/MLRT.json
       eventHandlers:
         - event: AssetDeposit(indexed address,indexed address,uint256,indexed address)
-          handler: handleAssetDepositV1
+          handler: handleEigenpieStakingAssetDepositV1
         - event: AssetDeposit(indexed address,indexed address,uint256,indexed address,uint256,bool)
-          handler: handleAssetDeposit
-      file: ./src/eigenpie-staking.ts
+          handler: handleEigenpieStakingAssetDepositV2
+      file: ./src/masterEigenpie.ts
+  - kind: ethereum
+    name: PriceProvider
+    network: mainnet
+    source:
+      address: "0x9daA893D4Dfb96F46eA879f08ca46f39DaC07767"
+      abi: PriceProvider
+      startBlock: 19090400
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - ExchangeRateUpdate
+      abis:
+        - name: PriceProvider
+          file: ./abis/PriceProvider.json
+      eventHandlers:
+        - event: ExchangeRateUpdate(indexed address,indexed address,uint256)
+          handler: handlePriceProviderExchangeRateUpdateEvent
+      file: ./src/masterEigenpie.ts
+  - kind: ethereum
+    name: mstETH_wstETH_CurveLP
+    network: mainnet
+    source:
+      abi: CurveLP
+      address: "0xC040041088B008EAC1bf5FB886eAc8c1e244B60F" 
+      startBlock: 19188963
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - AssetTransferLP
+      abis:
+        - name: CurveLP
+          file: ./abis/CurveLp.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleCurveLpTransfer
+        - event: TokenExchange(indexed address,int128,uint256,int128,uint256)
+          handler: handleCurveTrading
+        - event: AddLiquidity(indexed address,uint256[],uint256[],uint256,uint256)
+          handler: handleCurveAddLiquidity
+        - event: RemoveLiquidity(indexed address,uint256[],uint256[],uint256)
+          handler: handleCurveRemoveLiquidity
+        - event: RemoveLiquidityOne(indexed address,int128,uint256,uint256,uint256)
+          handler: handleCurveRemoveLiquidityOne
+        - event: RemoveLiquidityImbalance(indexed address,uint256[],uint256[],uint256,uint256)
+          handler: handleCurveRemoveLiquidityImbalance
+      file: ./src/masterEigenpie.ts
+  - kind: ethereum
+    name: mswETH_swETH_CurveLP
+    network: mainnet
+    source:
+      abi: CurveLP
+      address: "0x2022d9AF896eCF0F1f5B48cdDaB9e74b5aAbCf00"
+      startBlock: 19189942
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - AssetTransferLP
+      abis:
+        - name: CurveLP
+          file: ./abis/CurveLp.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleCurveLpTransfer
+        - event: TokenExchange(indexed address,int128,uint256,int128,uint256)
+          handler: handleCurveTrading
+        - event: AddLiquidity(indexed address,uint256[],uint256[],uint256,uint256)
+          handler: handleCurveAddLiquidity
+        - event: RemoveLiquidity(indexed address,uint256[],uint256[],uint256)
+          handler: handleCurveRemoveLiquidity
+        - event: RemoveLiquidityOne(indexed address,int128,uint256,uint256,uint256)
+          handler: handleCurveRemoveLiquidityOne
+        - event: RemoveLiquidityImbalance(indexed address,uint256[],uint256[],uint256,uint256)
+          handler: handleCurveRemoveLiquidityImbalance
+      file: ./src/masterEigenpie.ts
+  # - kind: ethereum
+  #   name: mLRT
+  #   network: mainnet
+  #   source:
+  #     abi: MLRT
+  #     address: "0x49446A0874197839D15395B908328a74ccc96Bc0"
+  #     startBlock: 19095405
+  #   mapping:
+  #     kind: ethereum/events
+  #     apiVersion: 0.0.7
+  #     language: wasm/assemblyscript
+  #     entities:
+  #       - MLRT
+  #     abis:
+  #       - name: MLRT
+  #         file: ./abis/MLRT.json
+  #     eventHandlers:
+  #       - event: Transfer(indexed address,indexed address,uint256)
+  #         handler: handleMlrtTransfer
+  #     file: ./src/masterEigenpie.ts
+  - kind: ethereum
+    name: ZtakingPool
+    network: mainnet
+    source:
+      abi: ZtakingPool
+      address: "0xF047ab4c75cebf0eB9ed34Ae2c186f3611aEAfa6"
+      startBlock: 19335788
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - ZtakingAssetDeposit
+        - ZtakingAssetWithdraw
+      abis:
+        - name: ZtakingPool
+          file: ./abis/ZtakingPool.json
+      eventHandlers:
+        - event: Deposit(indexed uint256,indexed address,indexed address,uint256)
+          handler: handleZircuitDeposit
+        - event: Withdraw(indexed uint256,indexed address,indexed address,uint256)
+          handler: handleZircuitWithdraw
+      file: ./src/masterEigenpie.ts
   - kind: ethereum
     name: EigenpieConfig
     network: mainnet
@@ -49,63 +172,9 @@ dataSources:
       eventHandlers:
         - event: AddedNewSupportedAsset(indexed address,indexed address,uint256)
           handler: handleAddedNewSupportedAsset
-        - event: AssetStrategyUpdate(indexed address,indexed address)
-          handler: handleAssetStrategyUpdate
         - event: ReceiptTokenUpdated(indexed address,indexed address)
           handler: handleReceiptTokenUpdated
-      file: ./src/eigenpie-config.ts
-  - kind: ethereum
-    name: CurveLP-mst-wstETH
-    network: mainnet
-    source:
-      abi: CurveLP
-      address: "0xC040041088B008EAC1bf5FB886eAc8c1e244B60F"
-      startBlock: 19188963
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      entities:
-        - AssetTransferLP
-      abis:
-        - name: CurveLP
-          file: ./abis/CurveLp.json
-        - name: MLRT
-          file: ./abis/MLRT.json
-        - name: CurveAsset
-          file: ./abis/CurveAsset.json
-      eventHandlers:
-        - event: Transfer(indexed address,indexed address,uint256)
-          handler: handleTransfer
-        - event: TokenExchange(indexed address,int128,uint256,int128,uint256)
-          handler: handleTokenExchange
-      file: ./src/CurveLp.ts
-  - kind: ethereum
-    name: CurveLP-msw-swETH
-    network: mainnet
-    source:
-      abi: CurveLP
-      address: "0x2022d9AF896eCF0F1f5B48cdDaB9e74b5aAbCf00"
-      startBlock: 19189942
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      entities:
-        - AssetTransferLP
-      abis:
-        - name: CurveLP
-          file: ./abis/CurveLp.json
-        - name: MLRT
-          file: ./abis/MLRT.json
-        - name: CurveAsset
-          file: ./abis/CurveAsset.json
-      eventHandlers:
-        - event: Transfer(indexed address,indexed address,uint256)
-          handler: handleTransfer
-        - event: TokenExchange(indexed address,int128,uint256,int128,uint256)
-          handler: handleTokenExchange
-      file: ./src/CurveLp.ts
+      file: ./src/masterEigenpie.ts
 templates:
   - name: MLRT
     kind: ethereum/contract
@@ -116,7 +185,7 @@ templates:
       kind: ethereum/events
       apiVersion: 0.0.7
       language: wasm/assemblyscript
-      file: ./src/MLRT.ts
+      file: ./src/masterEigenpie.ts
       entities:
         - MLRT
       abis:
@@ -124,4 +193,4 @@ templates:
           file: ./abis/MLRT.json
       eventHandlers:
         - event: Transfer(indexed address,indexed address,uint256)
-          handler: handleTransfer
+          handler: handleMlrtTransfer

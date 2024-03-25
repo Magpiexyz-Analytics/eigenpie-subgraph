@@ -1,87 +1,68 @@
-type ReferralStatus @entity(immutable: false) {
-  id: Bytes!
-  totalUsers: Int!
-  totalGroups: Int!
-}
-
-type GroupMlrtPoolStatus @entity(immutable: false) {
-  id: Bytes!
-  group: ReferralGroup!
-  mlrt: TrackedMLRT!
-  totalTvl: BigInt!
-  totalAmount: BigInt!
-  totalUnmintedTvl: BigInt!
-  totalUnmintedMlrt: BigInt!
-  accumulateEigenLayerPoints: BigInt!
-  accumulateEigenpiePoints: BigInt!
-  accEigenLayerPointPerShare: BigInt!
-  accEigenpiePointPerShare: BigInt!
-  lastUpdateTimestamp: BigInt!
-}
-
-type GroupPartnerLpStatus @entity(immutable: false) {
-  id: Bytes! # hash(group, lp address)
-  group: ReferralGroup!
-  prtotcol: String!
-  lpAddress: Bytes!
-  totalAmount: BigInt!
-  accumulateEigenLayerPoints: BigInt!
-  accumulateEigenpiePoints: BigInt!
-  accEigenLayerPointPerShare: BigInt!
-  accEigenpiePointPerShare: BigInt!
-  lastUpdateTimestamp: BigInt!
-}
-
-type PartnerLpStatus @entity(immutable: false) {
-  id: Bytes!
-  holdingGroups: [GroupPartnerLpStatus!]!
-}
-
-type UserData @entity {
-  id: Bytes!
-  referrer: Bytes!
-  referralGroup: ReferralGroup!
-  referralCount: Int!
-  mLrtPools: [UserPoolDepositData!]! @derivedFrom(field: "user")
-  curvePools: [UserPartnerLpDepositData!]! @derivedFrom(field: "user")
-  # rangePools
-}
-
-type UserPoolDepositData @entity {
-  id: Bytes!
-  user: UserData!
-  mlrt: TrackedMLRT!
-  mlrtAmount: BigInt!
-  unmintedMlrt: BigInt!
-  eigenLayerPoints: BigInt!
-  eigenpiePoints: BigInt!
-  eigenLayerPointsDebt: BigInt!
-  eigenpiePointsDebt: BigInt!
-}
-
-type UserPartnerLpDepositData @entity {
-  id: Bytes!
-  user: UserData!
-  prtotcol: String!
-  lpAddress: Bytes!
-  lpAmount: BigInt!
-  eigenLayerPoints: BigInt!
-  eigenpiePoints: BigInt!
-  eigenLayerPointsDebt: BigInt!
-  eigenpiePointsDebt: BigInt!
-}
-
-type ReferralGroup @entity {
-  id: Bytes!
-  members: [UserData!]! @derivedFrom(field: "referralGroup")
-  mlrtPoolStatus: [GroupMlrtPoolStatus!]! @derivedFrom(field: "group")
-  groupTVL: BigInt!
-  groupBoost: BigInt!
-}
-
 type TrackedMLRT @entity(immutable: true) {
   id: Bytes!
   underlying: Bytes!
   strategy: Bytes!
   addedTimestamp: BigInt!
+}
+
+type PoolInfo @entity(immutable: false) {
+  id: Bytes! # hash(group, lpToken)
+  group: Bytes!
+  lpToken: LpInfo!
+  totalShares: BigInt!
+  totalUnclaimedShares: BigInt!
+  accEigenLayerPointPerShare: BigInt!
+  accEigenpiePointPerShare: BigInt!
+  lastRewardTimestamp: BigInt!
+}
+
+type UserBalanceInfo @entity {
+  id: Bytes! # hash(group, lpToken, user)
+  group: Bytes!
+  lpToken: LpInfo!
+  poolInfo: PoolInfo!
+  user: UserInfo!
+  shares: BigInt!
+  unclaimedShares: BigInt!
+  eigenLayerPointsDebt: BigInt!
+  eigenpiePointsDebt: BigInt!
+}
+
+type LpInfo @entity(immutable: false) {
+  id: Bytes! # hash(lpToken)
+  lpToken: Bytes!
+  eigenLayerPointsPerSec: BigInt!
+  eigenpiePointsPerSec: BigInt!
+  pools: [PoolInfo!]! @derivedFrom(field: "lpToken")
+  priceToETH: BigInt!
+  mLrtRatio: BigInt!
+}
+
+type UserInfo @entity(immutable: false) {
+  id: Bytes! # hash(user)
+  user: Bytes!
+  group: GroupInfo!
+  userBalances: [UserBalanceInfo!]! @derivedFrom(field: "user")
+  referrer: Bytes!
+  referralCount: BigInt!
+  eigenLayerPoints: BigInt!
+  eigenpiePoints: BigInt!
+  eigenpieReferralPoints: BigInt!
+}
+
+type GroupInfo @entity(immutable: false) {
+  id: Bytes! # hash(group)
+  group: Bytes!
+  groupBoost: BigInt!
+  members: [UserInfo!]! @derivedFrom(field: "group")
+  totalTvl: BigInt!
+}
+
+type GlobalInfo @entity(immutable: false) {
+  id: Bytes! # hash(bytes zero)
+  globalBoost: BigInt!
+  lastDailyUpdateAllPoolsTimestamp: BigInt!
+  totalTvl: BigInt!
+  totalEigenpiePoints: BigInt!
+  totalEigenLayerPoints: BigInt!
 }
